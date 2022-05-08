@@ -22,7 +22,7 @@ import scipy.io
 import cv2
 # Local imports
 from utils import to_var, to_data, spec_to_network_input, create_dir
-from models.model_components import maskCNNModel, classificationHybridModel
+from model_components import maskCNNModel, classificationHybridModel
 import torch.autograd.profiler as profiler
 import time
 
@@ -35,15 +35,7 @@ if torch.cuda.is_available():
     torch.cuda.manual_seed(SEED)
 
 
-def create_model(opts):
-    maskCNN = maskCNNModel(opts)
-    C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel,
-                                       conv_dim_out=opts.n_classes,
-                                       conv_dim_lstm=opts.conv_dim_lstm)
-    if torch.cuda.is_available():
-        maskCNN.cuda()
-        C_XtoY.cuda()
-    return maskCNN, C_XtoY
+
 
 
 def checkpoint(iteration, mask_CNN, C_XtoY, opts):
@@ -68,7 +60,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
     g_params = list(mask_CNN.parameters()) + list(C_XtoY.parameters())
     g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
 
-    # Maintain Log of average model loss of latest 20 steps
+    # Maintain Log of average model loss of latest opts.log_step*5 steps
     logfile = os.path.join(opts.log_dir, 'log' + str(opts.snr_list[0])+'_'+str(opts.snr_list[-1])+'_'+str(opts.stack_imgs) + '.txt')
     G_Y_loss_avg = []
     G_Image_loss_avg = []
@@ -112,23 +104,22 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             g_optimizer.zero_grad()
             G_Image_loss = opts.scaling_for_imaging_loss * g_y_pix_loss
             G_Class_loss = opts.scaling_for_classification_loss * g_y_class_loss
-            G_Y_loss = G_Image_loss + G_Class_loss * 0.1 ##DEBUG
-            if(iteration > 300): G_Y_loss = G_Image_loss + G_Class_loss ##DEBUG
+            G_Y_loss = G_Image_loss + G_Class_loss 
             G_Y_loss.backward()
             g_optimizer.step()
 
             
             #########################################
-            ##     LOG THE LOSS OF LATEST 20 STEPS
+            ##     LOG THE LOSS OF LATEST opts.log_step*5 STEPS
             #########################################
-            if len(G_Y_loss_avg)<20:
+            if len(G_Y_loss_avg)<opts.log_step*5:
                 G_Y_loss_avg.append(G_Y_loss.item())
                 G_Image_loss_avg.append(G_Image_loss.item())
                 G_Class_loss_avg.append(G_Class_loss.item())
             else:
-                G_Y_loss_avg[iteration % 20] = G_Y_loss.item()
-                G_Image_loss_avg[iteration % 20] = G_Image_loss.item()
-                G_Class_loss_avg[iteration % 20] = G_Class_loss.item()
+                G_Y_loss_avg[iteration % opts.log_step*5] = G_Y_loss.item()
+                G_Image_loss_avg[iteration % opts.log_step*5] = G_Image_loss.item()
+                G_Class_loss_avg[iteration % opts.log_step*5] = G_Class_loss.item()
             if iteration % opts.log_step == 0:
                 output_str = 'Train Iteration [{:6d}/{:5d}] | G_Y_loss: {:6.4f}| G_Image_loss: {:6.4f}| G_Class_loss: {:6.4f} | Time: {:.2f}' .format(iteration,opts.train_iters,
                                 np.mean(G_Y_loss_avg),

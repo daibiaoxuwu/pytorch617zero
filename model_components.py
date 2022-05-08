@@ -87,13 +87,13 @@ class maskCNNModel(nn.Module):
             nn.BatchNorm2d(64), nn.ReLU(),
 
             # cnn8
-            nn.Conv2d(64, 2, kernel_size=(1, 1), dilation=(1, 1)),
+            nn.Conv2d(64, 8, kernel_size=(1, 1), dilation=(1, 1)),
 
         )
 
-        #self.lstm = nn.LSTM( opts.conv_dim_lstm, opts.lstm_dim, batch_first=True, bidirectional=True)
+        self.lstm = nn.LSTM( opts.conv_dim_lstm, opts.lstm_dim, batch_first=True, bidirectional=True)
 
-        self.fc1 = nn.Linear(128, opts.fc1_dim)
+        self.fc1 = nn.Linear(2 * opts.lstm_dim, opts.fc1_dim)
         self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.y_image_channel)
         create_dir('/data/djl/temp'+str(self.opts.snr_list[0]))
 
@@ -123,18 +123,16 @@ class maskCNNModel(nn.Module):
 
         for idx in range(len(xs)):
             out = self.conv3(outs[idx])
-            #out = out.transpose(1, 2).contiguous()
-            #out = out.view(out.size(0), out.size(1), -1)
-            #out, _ = self.lstm(out)
-            #out = F.relu(out)
-            '''
+            out = out.transpose(1, 2).contiguous()
+            out = out.view(out.size(0), out.size(1), -1)
+            out, _ = self.lstm(out)
+            out = F.relu(out)
             out = self.fc1(out)
             out = F.relu(out)
             out = self.fc2(out)
 
             out = out.view(out.size(0), out.size(1), self.opts.y_image_channel, -1)
             out = out.transpose(1, 2).contiguous()
-            out = out.transpose(2, 3).contiguous()'''
             out = out.transpose(2, 3).contiguous()
             outs[idx] = torch.sigmoid(out)
         return outs

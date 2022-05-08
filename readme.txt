@@ -21,3 +21,6 @@ CUDA_VISIBLE_DEVICES=1 python3 main.py --snr_list -22 --train_iters 30000 --load
 SNR-22: max 0.4828125
     parser.add_argument('--train_datacnt', type=int, default=500)
     50 can only last 400 epochs at batchsize 16
+
+pytorch70orig
+return the model to original form

@@ -1,14 +1,14 @@
 """Main script for project."""
 from __future__ import print_function
 import config
-import datasets.data_loader as data_loader
+import data_loader
 import end2end
 import os
 import pickle
 import numpy as np
 import random
 import torch
-from models.model_components import maskCNNModel, classificationHybridModel
+from model_components import maskCNNModel, classificationHybridModel
 from utils import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -67,7 +67,13 @@ if __name__ == "__main__":
         print('load checkpoint')
         mask_CNN, C_XtoY = load_checkpoint(opts)
     else:
-        mask_CNN, C_XtoY = create_model(opts)
+        mask_CNN = maskCNNModel(opts)
+        C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel,
+                                           conv_dim_out=opts.n_classes,
+                                           conv_dim_lstm=opts.conv_dim_lstm)
+        if torch.cuda.is_available():
+            mask_CNN.cuda()
+            C_XtoY.cuda()
     
     #Loads the data, creates checkpoint and sample directories, and starts the training loop.
 
