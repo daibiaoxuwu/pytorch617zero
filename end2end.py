@@ -72,9 +72,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
     while iteration < opts.train_iters:
         train_iter = iter(training_dataloader)
         print('start new training epoch')
-        print('before start', torch.cuda.memory_allocated())
         for images_X, labels_X, images_Y in train_iter:
-            print('train iter', torch.cuda.memory_allocated())
             if iteration>opts.train_iters:break
             iteration+=1
 
@@ -97,9 +95,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             #########################################
             ##              FORWARD
             #########################################
-            print('before train forward', torch.cuda.memory_allocated())
             fake_Y_spectrum = mask_CNN(images_X_spectrum) #CNN input: a list of images, output: a list of images
-            print('after train forward', torch.cuda.memory_allocated())
             fake_Y_spectrum = torch.mean(torch.stack(fake_Y_spectrum,0),0) #average of CNN outputs
             
             g_y_pix_loss = loss_spec(fake_Y_spectrum, images_Y_spectrum)
@@ -111,7 +107,6 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             G_Y_loss = G_Image_loss + G_Class_loss 
             G_Y_loss.backward()
             g_optimizer.step()
-            print('before log', torch.cuda.memory_allocated())
 
             
             #########################################
@@ -137,60 +132,43 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             ## checkpoint
             if (iteration+1) % opts.checkpoint_every == 0:
                 checkpoint(iteration, mask_CNN, C_XtoY, opts)
-            break
-        break
 
-        ## test
-    print('before test', torch.cuda.memory_allocated())
-    torch.cuda.empty_cache()
-    print('empty cache', torch.cuda.memory_allocated())
-    print('start testing..')
-    error_matrix = 0
-    error_matrix_count = 0
-    test_iter = iter(testing_dataloader)
-    print('create iter', torch.cuda.memory_allocated())
-    iteration_test = 0
-    for images_X_test, labels_X_test, images_Y_test in test_iter:
-        iteration_test+=1
-        if iteration_test % opts.log_step == 0: print('Test Iteration', iteration_test)
-        print('Test Iteration', iteration_test)
-        torch.cuda.empty_cache()
-        print('after iter', torch.cuda.memory_allocated())
+            ## test
+            if iteration % opts.test_step == 1 or iteration == opts.train_iters:
+                print('start testing..')
+                error_matrix = 0
+                error_matrix_count = 0
+                test_iter = iter(testing_dataloader)
+                for images_X_test, labels_X_test, images_Y_test in test_iter:
 
-        #prepare testing data
-        images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
-        images_Y_test = to_var(images_Y_test)
-        images_X_test_spectrum = []
-        for i in range(opts.stack_imgs):
-            images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
-                                                    hop_length=opts.stft_overlap, win_length=opts.stft_window,
-                                                    pad_mode='constant');
-            images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
+                        #prepare testing data
+                        images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
+                        images_Y_test = to_var(images_Y_test)
+                        images_X_test_spectrum = []
+                        for i in range(opts.stack_imgs):
+                            images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
+                                                                    hop_length=opts.stft_overlap, win_length=opts.stft_window,
+                                                                    pad_mode='constant');
+                            images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
 
-        images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
-                                                hop_length=opts.stft_overlap, win_length=opts.stft_window,
-                                                pad_mode='constant');
-        images_Y_test_spectrum = spec_to_network_input(images_Y_test_spectrum_raw, opts)
+                        images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
+                                                                hop_length=opts.stft_overlap, win_length=opts.stft_window,
+                                                                pad_mode='constant');
+                        images_Y_test_spectrum = spec_to_network_input(images_Y_test_spectrum_raw, opts)
 
-        # forward
-        print('before forward', torch.cuda.memory_allocated())
-        fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum)
-        print('after CNN', torch.cuda.memory_allocated())
-        fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
-        print('after mean', torch.cuda.memory_allocated())
-        labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
-        print('after est', torch.cuda.memory_allocated())
+                        # forward
+                        fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum)
+                        fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
+                        labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
 
-        #get the answer
-        _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
-        test_right_case = (labels_X_test_estimated == labels_X_test)
-        test_right_case = to_data(test_right_case)
-        print('after test', torch.cuda.memory_allocated())
-        error_matrix += np.sum(test_right_case)
-        error_matrix_count += opts.batch_size
-        if iteration_test > 5: break
-    error_matrix = error_matrix / error_matrix_count
-    print('test accuracy',error_matrix,'logged to', logfile)
-    with open(logfile,'a') as f:
-        f.write(str(iteration) +  ' ' + str(error_matrix)+'\n')
-    print('after test', torch.cuda.memory_allocated())
+                        #get the answer
+                        _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
+                        test_right_case = (labels_X_test_estimated == labels_X_test)
+                        test_right_case = to_data(test_right_case)
+                        error_matrix += np.sum(test_right_case)
+                        error_matrix_count += opts.batch_size
+                error_matrix = error_matrix / error_matrix_count
+                print('test accuracy',error_matrix,'logged to', logfile)
+                with open(logfile,'a') as f:
+                    f.write(str(iteration) +  ' ' + str(error_matrix)+'\n')
+    return mask_CNN, C_XtoY
