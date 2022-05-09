@@ -39,7 +39,6 @@ class lora_dataset(data.Dataset):
                 self.data2 = self.data2.cuda()
                 self.maxidx = self.data2.shape[0]
         else:
-            print('processing training data and dumping to', dpath)
             starts = [0]*128
             data2 = []
             label_pers = []
@@ -112,32 +111,55 @@ class lora_dataset(data.Dataset):
         return temp
 
 # receive the csi feature map derived by the ray model as the input
-def lora_loader(opts, files_train, files_test):
+def lora_loader(opts):
     """Creates training and test data loaders.
     """
-    random.shuffle(files_train)
-    random.shuffle(files_test)
+    dpath = '/data/djl/test_dataset'+str(opts.snr_list)[1:-1]+str(opts.stack_imgs)+'.pkl'
+    dpath2 = '/data/djl/train_dataset'+str(opts.snr_list)[1:-1]+str(opts.stack_imgs)+'.pkl'
+    if os.path.exists(dpath) and os.path.exists(dpath2) and opts.use_old_data == 'True':
+        training_dataset =  lora_dataset(opts, [], True, [], [])
+        testing_dataset =   lora_dataset(opts, [], False, [], [])
+        training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
+        testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
+        return training_dloader, testing_dloader
+    else:
+        print('processing training data and dumping to', dpath)
+        Y_filenames = []
+        for i in range(128):
+            filelist = os.listdir(os.path.join(opts.data_dir,str(i),str(opts.groundtruth_code))) #use SNR<-15 for training data(X); SNR=+35 for groundtruth(Y). we first find the SNR=+35 data (Y) and then read the corresponding SNR<-15 data for training(X).
+            Y_filenames.extend([ os.path.join(opts.data_dir,str(i),str(opts.groundtruth_code),j) for j in filelist])
+        random.shuffle(Y_filenames)
 
-    filenames_train = [ [] for x in range(128)]
-    for data_file_name0 in files_train:
-        code_label  = int(data_file_name0.split("_")[5])
-        filenames_train[code_label].append(data_file_name0)
-    for i in range(128): random.shuffle(filenames_train[i])
+        num_files = len(Y_filenames)
+        num_train = int(num_files * opts.ratio_bt_train_and_test)
+        files_train = Y_filenames[0:num_train]
+        files_test = Y_filenames[num_train:num_files]
 
-    filenames_test = [ [] for x in range(128)]
-    for data_file_name0 in files_test:
-        code_label  = int(data_file_name0.split("_")[5])
-        filenames_test[code_label].append(data_file_name0)
-    for i in range(128): random.shuffle(filenames_test[i])
+        print("length of training and testing data is {},{}".format(len(files_train), len(files_test)))
 
-    answers = [i%128 for i in range(opts.train_datacnt * 128)]
-    random.shuffle(answers)
+        random.shuffle(files_train)
+        random.shuffle(files_test)
 
-    training_dataset =  lora_dataset(opts, files_train, True, filenames_train, answers)
-    answers = [i%128 for i in range(opts.test_datacnt * 128)]
-    random.shuffle(answers)
-    testing_dataset =   lora_dataset(opts, files_test, False, filenames_test, answers)
+        filenames_train = [ [] for x in range(128)]
+        for data_file_name0 in files_train:
+            code_label  = int(data_file_name0.split("_")[5])
+            filenames_train[code_label].append(data_file_name0)
+        for i in range(128): random.shuffle(filenames_train[i])
 
-    training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
-    testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
-    return training_dloader, testing_dloader
+        filenames_test = [ [] for x in range(128)]
+        for data_file_name0 in files_test:
+            code_label  = int(data_file_name0.split("_")[5])
+            filenames_test[code_label].append(data_file_name0)
+        for i in range(128): random.shuffle(filenames_test[i])
+
+        answers = [i%128 for i in range(opts.train_datacnt * 128)]
+        random.shuffle(answers)
+
+        training_dataset =  lora_dataset(opts, files_train, True, filenames_train, answers)
+        answers = [i%128 for i in range(opts.test_datacnt * 128)]
+        random.shuffle(answers)
+        testing_dataset =   lora_dataset(opts, files_test, False, filenames_test, answers)
+
+        training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
+        testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
+        return training_dloader, testing_dloader

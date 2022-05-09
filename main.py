@@ -34,12 +34,11 @@ def load_checkpoint(opts):
         C_XtoY.cuda()
     return maskCNN, C_XtoY
 
-def main(opts,files_train,files_test,mask_CNN, C_XtoY):
+def main(opts,mask_CNN, C_XtoY):
     torch.cuda.empty_cache()
 
     # Create train and test dataloaders for images from the two domains X and Y
-    training_dataloader, testing_dataloader = data_loader.lora_loader(
-        opts, files_train, files_test)
+    training_dataloader, testing_dataloader = data_loader.lora_loader(opts)
     # Create checkpoint directories
     create_dir(opts.checkpoint_dir)
 
@@ -77,19 +76,8 @@ if __name__ == "__main__":
     
     #Loads the data, creates checkpoint and sample directories, and starts the training loop.
 
-    Y_filenames = []
-    for i in range(128):
-        filelist = os.listdir(os.path.join(opts.data_dir,str(i),str(opts.groundtruth_code))) #use SNR<-15 for training data(X); SNR=+35 for groundtruth(Y). we first find the SNR=+35 data (Y) and then read the corresponding SNR<-15 data for training(X).
-        Y_filenames.extend([ os.path.join(opts.data_dir,str(i),str(opts.groundtruth_code),j) for j in filelist])
-    random.shuffle(Y_filenames)
 
-    num_files = len(Y_filenames)
-    num_train = int(num_files * opts.ratio_bt_train_and_test)
-    files_train = Y_filenames[0:num_train]
-    files_test = Y_filenames[num_train:num_files]
-
-    print("length of training and testing data is {},{}".format(len(files_train), len(files_test)))
     print('start training with snr',opts.snr_list,'stack',opts.stack_imgs)
             
-    mask_CNN, C_XtoY = main(opts,files_train, files_test,mask_CNN, C_XtoY)
+    mask_CNN, C_XtoY = main(opts,mask_CNN, C_XtoY)
 
