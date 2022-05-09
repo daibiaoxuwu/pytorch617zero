@@ -24,3 +24,7 @@ SNR-22: max 0.4828125
 
 pytorch70orig
 return the model to original form
+
+0509:
+CUDA_VISIBLE_DEVICES=1 python3 main.py --snr_list -15 --train_iters 300000 --load yes --load_checkpoint_dir /data/djl/evaluations/mult12_ckpt_-21_-21_3 --load_iters 30000 --checkpoint_dir /data/djl/checkpoints/ckpt0509-15-1o --batch_size 4 --use_old_data False
+20000epoch lr=0.0002 reach 97 accuracy snr=-15
