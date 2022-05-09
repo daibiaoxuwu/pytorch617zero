@@ -98,8 +98,9 @@ class lora_dataset(data.Dataset):
             self.label_pers =torch.tensor(label_pers,dtype=int).cuda()
             self.label_perYs = label_perYs
             self.maxidx = self.data2.shape[0]
-            with open(dpath,'wb') as g: 
-                pickle.dump([self.data2,self.label_pers, self.data_perYs], g)
+            if opts.write_new_data == 'True':
+                with open(dpath,'wb') as g: 
+                    pickle.dump([self.data2,self.label_pers, self.data_perYs], g)
 
     def __len__(self):
         'Denotes the total number of samples'

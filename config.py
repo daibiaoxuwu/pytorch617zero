@@ -55,5 +55,6 @@ def create_parser():
     parser.add_argument('--train_datacnt', type=int, default=500)
     parser.add_argument('--test_datacnt', type=int, default=5)
     parser.add_argument('--use_old_data', type=str, default='True')
+    parser.add_argument('--write_new_data', type=str, default='False')
 
     return parser
