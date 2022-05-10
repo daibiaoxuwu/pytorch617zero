@@ -22,7 +22,7 @@ SNR-22: max 0.4828125
     parser.add_argument('--train_datacnt', type=int, default=500)
     50 can only last 400 epochs at batchsize 16
 
-pytorch70orig
+....../pytorch70orig
 return the model to original form
 
 0509:
@@ -38,3 +38,9 @@ snr-17: 84% - 3000epoch 0.9453125(batchsize 16)
 snr-19: 75% - 3000epoch 0.82 --9000epoch - 0.84375 
 snr-20: 0.6796875% - 5999 0.74%
 snr-21: 0.58 - 8999 0.65
+
+
+
+move to pytorch70trian
+(base) dujialuo@danlu:~/NELoRa-Sensys/neural_enhanced_demodulation/pytorch70train$ CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 30000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0509-15-5o --load_iters 8999 --checkpoint_dir /data/djl/checkpoints/ckpt0509-15-6o --checkpoint_every 3000 --snr_list -23 load checkpoint loading model checkpoint from /data/djl/checkpoints/ckpt0509-15-5o/8999_C_XtoY.pkl /data/djl/checkpoints/ckpt0509-15-5o/8999_maskCNN.pkl start training with snr [-23] stack 3 load data max steps: 4000 dataset count of each of the 128  symbols: max 500 min 500 avg 500.0 load data max steps: 40 dataset count of each of the 128  symbols: max 5 min 5 avg 5.0 start new training epoch start testing.. test accuracy 0.321875 logged to /data/djl/logs0404/log-23_-23_3.txt Train Iteration [   100/30000] | G_Y_loss: 73.5872| G_Image_loss: 69.8121| G_Class_loss: 3.7751 | Time: 41.71
+snr-23: 0.32 -

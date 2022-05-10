@@ -38,6 +38,10 @@ class lora_dataset(data.Dataset):
                 self.data_perYs = self.data_perYs.cuda()
                 self.data2 = self.data2.cuda()
                 self.maxidx = self.data2.shape[0]
+                print('load data max steps:', int(self.maxidx/opts.batch_size))
+                stats = np.bincount(self.label_pers.cpu())
+                print('dataset count of each of the', 2**opts.sf,' symbols: max', np.max(stats),'min', np.min(stats), 'avg',np.mean(stats))
+
         else:
             starts = [0]*128
             data2 = []
