@@ -43,4 +43,9 @@ snr-21: 0.58 - 8999 0.65
 
 move to pytorch70trian
 (base) dujialuo@danlu:~/NELoRa-Sensys/neural_enhanced_demodulation/pytorch70train$ CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 30000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0509-15-5o --load_iters 8999 --checkpoint_dir /data/djl/checkpoints/ckpt0509-15-6o --checkpoint_every 3000 --snr_list -23 load checkpoint loading model checkpoint from /data/djl/checkpoints/ckpt0509-15-5o/8999_C_XtoY.pkl /data/djl/checkpoints/ckpt0509-15-5o/8999_maskCNN.pkl start training with snr [-23] stack 3 load data max steps: 4000 dataset count of each of the 128  symbols: max 500 min 500 avg 500.0 load data max steps: 40 dataset count of each of the 128  symbols: max 5 min 5 avg 5.0 start new training epoch start testing.. test accuracy 0.321875 logged to /data/djl/logs0404/log-23_-23_3.txt Train Iteration [   100/30000] | G_Y_loss: 73.5872| G_Image_loss: 69.8121| G_Class_loss: 3.7751 | Time: 41.71
-snr-23: 0.32 -
+snr-23: 0.32 -14000epochs 0.50
+CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 30000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0509-15-5o --load_iters 8999 --checkpoint_dir /data/djl/checkpoints/ckpt0509-15-6o --checkpoint_every 3000 --snr_list -23
+
+
+CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 30000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0509-15-6o --load_iters 14999 --checkpoint_dir /data/djl/checkpoints/ckpt0509-15-7o --checkpoint_every 3000 --snr_list -24
+snr=-24 no gain 0.37

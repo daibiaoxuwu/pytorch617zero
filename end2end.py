@@ -61,19 +61,22 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
     g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
 
     # Maintain Log of average model loss of latest opts.log_step*5 steps
-    logfile = os.path.join(opts.log_dir, 'log' + str(opts.snr_list[0])+'_'+str(opts.snr_list[-1])+'_'+str(opts.stack_imgs) + '.txt')
+    create_dir(opts.log_dir)
+    #logfile = os.path.join(opts.log_dir, 'log' + str(opts.snr_list[0])+'_'+str(opts.snr_list[-1])+'_'+str(opts.stack_imgs) + '.txt')
+    logfile = os.path.join(opts.log_dir, 'log.txt')
     G_Y_loss_avg = []
     G_Image_loss_avg = []
     G_Class_loss_avg = []
 
-    iteration = 0
+    iteration = opts.init_train_iter
     oldtime = time.time()#time the training process
 
-    while iteration < opts.train_iters:
+    while iteration < opts.init_train_iter + opts.train_iters:
         train_iter = iter(training_dataloader)
         print('start new training epoch')
         for images_X, labels_X, images_Y in train_iter:
-            if iteration>opts.train_iters:break
+            labels_X = labels_X.cuda()
+            if iteration>opts.init_train_iter+opts.train_iters:break
             iteration+=1
 
             images_X = to_var(images_X)
@@ -121,7 +124,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                 G_Image_loss_avg[iteration % opts.log_step*5] = G_Image_loss.item()
                 G_Class_loss_avg[iteration % opts.log_step*5] = G_Class_loss.item()
             if iteration % opts.log_step == 0:
-                output_str = 'Train Iteration [{:6d}/{:5d}] | G_Y_loss: {:6.4f}| G_Image_loss: {:6.4f}| G_Class_loss: {:6.4f} | Time: {:.2f}' .format(iteration,opts.train_iters,
+                output_str = 'Train Iteration [{:6d}/{:5d}] | G_Y_loss: {:6.4f}| G_Image_loss: {:6.4f}| G_Class_loss: {:6.4f} | Time: {:.2f}' .format(iteration,opts.init_train_iter + opts.train_iters,
                                 np.mean(G_Y_loss_avg),
                                 np.mean(G_Image_loss_avg),
                                 np.mean(G_Class_loss_avg),
@@ -134,12 +137,16 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                 checkpoint(iteration, mask_CNN, C_XtoY, opts)
 
             ## test
-            if iteration % opts.test_step == 1 or iteration == opts.train_iters:
+            if iteration % opts.test_step == 1 or iteration == opts.init_train_iter + opts.train_iters:
                 print('start testing..')
                 error_matrix = 0
                 error_matrix_count = 0
                 test_iter = iter(testing_dataloader)
+                iteration2 = 0
                 for images_X_test, labels_X_test, images_Y_test in test_iter:
+                        if iteration2 >= 500: break
+                        iteration2 += 1
+                        labels_X_test = labels_X_test.cuda()
 
                         #prepare testing data
                         images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
@@ -167,8 +174,8 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         test_right_case = to_data(test_right_case)
                         error_matrix += np.sum(test_right_case)
                         error_matrix_count += opts.batch_size
-                error_matrix = error_matrix / error_matrix_count
-                print('test accuracy',error_matrix,'logged to', logfile)
+                error_matrix2 = error_matrix / error_matrix_count
+                print('test accuracy',error_matrix2, error_matrix, error_matrix_count,'logged to', logfile)
                 with open(logfile,'a') as f:
-                    f.write(str(iteration) +  ' ' + str(error_matrix)+'\n')
+                    f.write(str(iteration) +  ' ' + str(error_matrix2)+'\n')
     return mask_CNN, C_XtoY
