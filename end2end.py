@@ -137,12 +137,14 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                 checkpoint(iteration, mask_CNN, C_XtoY, opts)
 
             ## test
-            if iteration % opts.test_step == 1 or iteration == opts.init_train_iter + opts.train_iters:
+            if iteration % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
                 print('start testing..')
                 error_matrix = 0
                 error_matrix_count = 0
                 test_iter = iter(testing_dataloader)
                 iteration2 = 0
+                G_Image_loss_avg_test = 0
+                G_Class_loss_avg_test = 0
                 for images_X_test, labels_X_test, images_Y_test in test_iter:
                         if iteration2 >= 500: break
                         iteration2 += 1
@@ -167,6 +169,10 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum)
                         fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
                         labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
+                        g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum)
+                        g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
+                        G_Image_loss_avg_test += g_y_pix_loss.item() 
+                        G_Class_loss_avg_test += g_y_class_loss.item() 
 
                         #get the answer
                         _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
@@ -175,7 +181,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         error_matrix += np.sum(test_right_case)
                         error_matrix_count += opts.batch_size
                 error_matrix2 = error_matrix / error_matrix_count
-                print('test accuracy',error_matrix2, error_matrix, error_matrix_count,'logged to', logfile)
+                print('test accuracy',error_matrix2, error_matrix, error_matrix_count,'imgloss',G_Image_loss_avg_test/error_matrix_count*opts.batch_size,'classloss',G_Class_loss_avg_test/error_matrix_count*opts.batch_size,  'logged to', logfile)
                 with open(logfile,'a') as f:
                     f.write(str(iteration) +  ' ' + str(error_matrix2)+'\n')
     return mask_CNN, C_XtoY

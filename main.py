@@ -20,7 +20,6 @@ def load_checkpoint(opts):
 
     maskCNN = maskCNNModel(opts)
     state_dict = torch.load(maskCNN_path, map_location=lambda storage, loc: storage)
-    print(state_dict.keys())
     #state_dict['conv2.1.weight']= torch.cat((state_dict['conv2.1.weight'], torch.zeros(64,258-130,5,5)),1)
     #state_dict['conv3.1.weight']= torch.cat((state_dict['conv3.1.weight'], torch.zeros(64,258-130,5,5)),1)
     maskCNN.load_state_dict(state_dict, strict=True)
@@ -65,6 +64,10 @@ if __name__ == "__main__":
 
 
     ##load model checkpoint
+    if opts.load_iters == -1:
+        vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir)]
+        opts.load_iters = max(vals)
+        print('load newest iteration:',opts.load_iters)
     if opts.load == 'yes':
         print('load checkpoint')
         mask_CNN, C_XtoY = load_checkpoint(opts)
@@ -80,12 +83,10 @@ if __name__ == "__main__":
     #Loads the data, creates checkpoint and sample directories, and starts the training loop.
 
 
-            
-    opts.init_train_iter = 0
-    for rep in range(10):
-        for snr in range(-15,-25,-1):
-            opts.snr_list = [snr,]
-            print('start training with snr',opts.snr_list,'stack',opts.stack_imgs)
-            mask_CNN, C_XtoY = main(opts,mask_CNN, C_XtoY)
-            opts.init_train_iter += opts.train_iters
+    opts.init_train_iter = opts.load_iters+1
+    for snr in range(-25,opts.snr_list[0],1):
+        opts.snr_list = [snr,]
+        print('start training with snr',opts.snr_list,'stack',opts.stack_imgs)
+        mask_CNN, C_XtoY = main(opts,mask_CNN, C_XtoY)
+        opts.init_train_iter += opts.train_iters
 

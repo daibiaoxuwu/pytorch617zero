@@ -49,3 +49,13 @@ CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 30000 --load yes --load_che
 
 CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 30000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0509-15-6o --load_iters 14999 --checkpoint_dir /data/djl/checkpoints/ckpt0509-15-7o --checkpoint_every 3000 --snr_list -24
 snr=-24 no gain 0.37
+
+
+retrain load from
+CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 30000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0513-lky-2 --checkpoint_dir /data/djl/checkpoints/ckpt0516-70train-1 --checkpoint_every 1000 --snr_list -15 --batch_size 4 --load_iters 29999
+
+then finetune
+ CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 1000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0516-70train-1 --checkpoint_dir /data/djl/checkpoints/ckpt0516-70train-2 --checkpoint_every 500 --snr_list -15 --batch_size 16 --load_iters 5999 --log_dir /data/djl/logs  1670  CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 2000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0516-70train-2 --checkpoint_dir /data/djl/checkpoints/ckpt0516-70train-3 --checkpoint_every 500 --snr_list -15 --batch_size 64 --load_iters 9999 --log_dir /data/djl/logs
+
+CUDA_VISIBLE_DEVICES=1 python3 main.py --train_iters 2000 --load yes --load_checkpoint_dir /data/djl/checkpoints/ckpt0516-70train-3 --checkpoint_dir /data/djl/checkpoints/ckpt0516-70train-4 --checkpoint_every 500 --snr_list -15 --batch_size 16 --load_iters 999 --log_dir /data/djl/logs --test_step 500
+batchsize16 weight1:1 or 1:2 can achieve 0.97
