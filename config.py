@@ -28,7 +28,7 @@ def create_parser():
     parser.add_argument( '--load_iters', type=int, default=100000, help= 'The number of training iterations to run (you can Ctrl-C out earlier if you want).')
     parser.add_argument('--batch_size', type=int, default=16, help='The number of images in a batch.')
     parser.add_argument( '--num_workers', type=int, default=0, help='The number of threads to use for the DataLoader.')
-    parser.add_argument('--lr', type=float, default=0.0001, help='The learning rate (default 0.0003)') 
+    parser.add_argument('--lr', type=float, default=0.001, help='The learning rate (default 0.0003)') 
     parser.add_argument('--sorting_type', type=int, default=4, choices=[4], help='The index for the selected domain.')
     parser.add_argument('--scaling_for_imaging_loss', type=int, default=1, help='The scaling factor for the imaging loss')
     parser.add_argument('--scaling_for_classification_loss', type=int, default=8, help='The scaling factor for the classification loss')

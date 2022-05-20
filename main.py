@@ -8,6 +8,7 @@ import pickle
 import numpy as np
 import random
 import torch
+import sys
 from model_components import maskCNNModel, classificationHybridModel
 from utils import *
 
@@ -52,6 +53,7 @@ def main(opts,mask_CNN, C_XtoY):
     return mask_CNN, C_XtoY
 
 if __name__ == "__main__":
+    print(sys.argv)
     parser = config.create_parser()
     opts = parser.parse_args()
 
@@ -69,7 +71,6 @@ if __name__ == "__main__":
         opts.load_iters = max(vals)
         print('load newest iteration:',opts.load_iters)
     if opts.load == 'yes':
-        print('load checkpoint')
         mask_CNN, C_XtoY = load_checkpoint(opts)
     else:
         mask_CNN = maskCNNModel(opts)
@@ -83,10 +84,13 @@ if __name__ == "__main__":
     #Loads the data, creates checkpoint and sample directories, and starts the training loop.
 
 
+    opts.logfile = os.path.join(opts.log_dir, 'logtest-djl-train.txt')
+    with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +str(sys.argv)+'\n')
     opts.init_train_iter = opts.load_iters+1
-    for snr in range(-25,opts.snr_list[0],1):
+    for snr in range(opts.snr_list[0]-1,-26,-1):
         opts.snr_list = [snr,]
         print('start training with snr',opts.snr_list,'stack',opts.stack_imgs)
+        with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' snr ' + str(opts.snr_list) + ' stack ' + str(opts.stack_imgs) + '\n')
         mask_CNN, C_XtoY = main(opts,mask_CNN, C_XtoY)
         opts.init_train_iter += opts.train_iters
 
