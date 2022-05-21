@@ -75,9 +75,17 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
         train_iter = iter(training_dataloader)
         #print('start new training epoch')
         for images_X, labels_X, images_Y in train_iter:
+            mask_CNN.train()
+            C_XtoY.train()
             labels_X = labels_X.cuda()
             if iteration>opts.init_train_iter+opts.train_iters:break
             iteration+=1
+            if iteration % 3000 == 0:
+                opts.lr = opts.lr * 0.85
+                g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
+                print('lr',opts.lr)
+            if iteration == 10000: opts.scaling_for_imaging_loss /= 2
+            if iteration == 20000: opts.scaling_for_imaging_loss /= 2
 
             images_X = to_var(images_X)
             images_Y = to_var(torch.tensor(images_Y, dtype=torch.cfloat))
@@ -138,50 +146,53 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
 
             ## test
             if iteration % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
-                #print('start testing..')
-                error_matrix = 0
-                error_matrix_count = 0
-                test_iter = iter(testing_dataloader)
-                iteration2 = 0
-                G_Image_loss_avg_test = 0
-                G_Class_loss_avg_test = 0
-                for images_X_test, labels_X_test, images_Y_test in test_iter:
-                        if iteration2 >= 500: break
-                        iteration2 += 1
-                        labels_X_test = labels_X_test.cuda()
+                mask_CNN.eval()
+                C_XtoY.eval()
+                with torch.no_grad():
+                    #print('start testing..')
+                    error_matrix = 0
+                    error_matrix_count = 0
+                    test_iter = iter(testing_dataloader)
+                    iteration2 = 0
+                    G_Image_loss_avg_test = 0
+                    G_Class_loss_avg_test = 0
+                    for images_X_test, labels_X_test, images_Y_test in test_iter:
+                            if iteration2 >= 500: break
+                            iteration2 += 1
+                            labels_X_test = labels_X_test.cuda()
 
-                        #prepare testing data
-                        images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
-                        images_Y_test = to_var(images_Y_test)
-                        images_X_test_spectrum = []
-                        for i in range(opts.stack_imgs):
-                            images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
+                            #prepare testing data
+                            images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
+                            images_Y_test = to_var(images_Y_test)
+                            images_X_test_spectrum = []
+                            for i in range(opts.stack_imgs):
+                                images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
+                                                                        hop_length=opts.stft_overlap, win_length=opts.stft_window,
+                                                                        pad_mode='constant');
+                                images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
+
+                            images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
                                                                     hop_length=opts.stft_overlap, win_length=opts.stft_window,
                                                                     pad_mode='constant');
-                            images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
+                            images_Y_test_spectrum = spec_to_network_input(images_Y_test_spectrum_raw, opts)
 
-                        images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
-                                                                hop_length=opts.stft_overlap, win_length=opts.stft_window,
-                                                                pad_mode='constant');
-                        images_Y_test_spectrum = spec_to_network_input(images_Y_test_spectrum_raw, opts)
+                            # forward
+                            fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum)
+                            fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
+                            labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
+                            g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum)
+                            g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
+                            G_Image_loss_avg_test += g_y_pix_loss.item() 
+                            G_Class_loss_avg_test += g_y_class_loss.item() 
 
-                        # forward
-                        fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum)
-                        fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
-                        labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
-                        g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum)
-                        g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
-                        G_Image_loss_avg_test += g_y_pix_loss.item() 
-                        G_Class_loss_avg_test += g_y_class_loss.item() 
-
-                        #get the answer
-                        _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
-                        test_right_case = (labels_X_test_estimated == labels_X_test)
-                        test_right_case = to_data(test_right_case)
-                        error_matrix += np.sum(test_right_case)
-                        error_matrix_count += opts.batch_size
-                error_matrix2 = error_matrix / error_matrix_count
-                print('test accuracy',error_matrix2, error_matrix, error_matrix_count,'imgloss',G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.scaling_for_imaging_loss ,'classloss',G_Class_loss_avg_test/error_matrix_count*opts.batch_size*opts.scaling_for_classification_loss,  'logged to', opts.logfile)
-                with open(opts.logfile,'a') as f:
-                    f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' + str(iteration) +  ' ' + str(error_matrix2)+'\n')
+                            #get the answer
+                            _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
+                            test_right_case = (labels_X_test_estimated == labels_X_test)
+                            test_right_case = to_data(test_right_case)
+                            error_matrix += np.sum(test_right_case)
+                            error_matrix_count += opts.batch_size
+                    error_matrix2 = error_matrix / error_matrix_count
+                    print('test accuracy',error_matrix2, error_matrix, error_matrix_count,'imgloss',G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.scaling_for_imaging_loss ,'classloss',G_Class_loss_avg_test/error_matrix_count*opts.batch_size*opts.scaling_for_classification_loss,  'logged to', opts.logfile)
+                    with open(opts.logfile,'a') as f:
+                        f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' + str(iteration) +  ' ' + str(error_matrix2)+'\n')
     return mask_CNN, C_XtoY

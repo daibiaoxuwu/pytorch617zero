@@ -30,8 +30,8 @@ def create_parser():
     parser.add_argument( '--num_workers', type=int, default=0, help='The number of threads to use for the DataLoader.')
     parser.add_argument('--lr', type=float, default=0.001, help='The learning rate (default 0.0003)') 
     parser.add_argument('--sorting_type', type=int, default=4, choices=[4], help='The index for the selected domain.')
-    parser.add_argument('--scaling_for_imaging_loss', type=int, default=1, help='The scaling factor for the imaging loss')
-    parser.add_argument('--scaling_for_classification_loss', type=int, default=8, help='The scaling factor for the classification loss')
+    parser.add_argument('--scaling_for_imaging_loss', type=int, default=128, help='The scaling factor for the imaging loss')
+    parser.add_argument('--scaling_for_classification_loss', type=int, default=1, help='The scaling factor for the classification loss')
     parser.add_argument('--beta1', type=float, default=0.5)
     parser.add_argument('--beta2', type=float, default=0.999)
     parser.add_argument('--evaluations_dir', type=str, default='/data/djl/evaluations', help='Choose the root path to rf signals.')
@@ -40,7 +40,7 @@ def create_parser():
     parser.add_argument('--feature_name', type=str, default='chirp', choices=['chirp'])
     parser.add_argument('--groundtruth_code', type=str, default='35', choices=['35', '50'])
     parser.add_argument("--code_list", nargs='+', default=[round(i, 1) for i in list(np.arange(0, 128, 0.1))], type=float)
-    parser.add_argument("--snr_list", nargs='+', default=list(range(-16, -15)), type=int)  # for train: -25:0, test: -40, 16
+    parser.add_argument("--snr_list", nargs='+', default=list(range(-25, -14)), type=int)  # for train: -25:0, test: -40, 16
     parser.add_argument( '--ratio_bt_train_and_test', type=float, default=0.9, help='The ratio between the train and the test dataset')
     parser.add_argument('--checkpoint_dir', type=str, default='/data/djl/checkpoints/default')
     parser.add_argument('--load', type=str, default='yes')

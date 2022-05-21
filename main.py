@@ -63,14 +63,16 @@ if __name__ == "__main__":
     opts.stft_overlap = opts.stft_window // 2
     opts.conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
     opts.freq_size = opts.n_classes
+    if opts.load_checkpoint_dir == '/data/djl':
+        opts.load_checkpoint_dir = opts.checkpoint_dir
 
 
     ##load model checkpoint
-    if opts.load_iters == -1:
-        vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir)]
-        opts.load_iters = max(vals)
-        print('load newest iteration:',opts.load_iters)
     if opts.load == 'yes':
+        if opts.load_iters == -1:
+            vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir)]
+            opts.load_iters = max(vals)
+            print('load newest iteration:',opts.load_iters)
         mask_CNN, C_XtoY = load_checkpoint(opts)
     else:
         mask_CNN = maskCNNModel(opts)
@@ -87,10 +89,6 @@ if __name__ == "__main__":
     opts.logfile = os.path.join(opts.log_dir, 'logtest-djl-train.txt')
     with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +str(sys.argv)+'\n')
     opts.init_train_iter = opts.load_iters+1
-    for snr in range(opts.snr_list[0]-1,-26,-1):
-        opts.snr_list = [snr,]
-        print('start training with snr',opts.snr_list,'stack',opts.stack_imgs)
-        with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' snr ' + str(opts.snr_list) + ' stack ' + str(opts.stack_imgs) + '\n')
-        mask_CNN, C_XtoY = main(opts,mask_CNN, C_XtoY)
-        opts.init_train_iter += opts.train_iters
+    mask_CNN, C_XtoY = main(opts,mask_CNN, C_XtoY)
+    opts.init_train_iter += opts.train_iters
 

@@ -134,5 +134,5 @@ class maskCNNModel(nn.Module):
             out = out.view(out.size(0), out.size(1), self.opts.y_image_channel, -1)
             out = out.transpose(1, 2).contiguous()
             out = out.transpose(2, 3).contiguous()
-            outs[idx] = torch.sigmoid(out)
+            outs[idx] = out * xs[idx]
         return outs
