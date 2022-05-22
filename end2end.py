@@ -186,12 +186,12 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                 C_XtoY.eval()
                 with torch.no_grad():
                     #print('start testing..')
-                    error_matrix = [0,0,0,0,0,0,0]
+                    error_matrix = 0
                     error_matrix_count = 0
                     test_iter = iter(testing_dataloader)
                     iteration2 = 0
-                    G_Image_loss_avg_test = [0,0,0,0]
-                    G_Class_loss_avg_test = [0,0,0,0,0]
+                    G_Image_loss_avg_test = 0
+                    G_Class_loss_avg_test = 0
                     for images_X_test, labels_X_test, images_Y_test0 in test_iter:
                             if iteration2 >= 100: break
                             iteration2 += 1
@@ -215,81 +215,24 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
 
                             # forward
                             fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum)
-                            labels_X_estimateds = [C_XtoY(i) for i in fake_Y_test_spectrums]
-                            labels_X_test_estimateds = torch.stack([torch.max(i, 1)[1] for i in labels_X_estimateds]).double()
-
                             fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
                             labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
-                            fake_Y_test_spectrumT = torch.max(torch.stack(fake_Y_test_spectrums,0),0)[0]
-                            labels_X_estimatedT = C_XtoY(fake_Y_test_spectrumT)
-                            fake_Y_test_spectrumT2 = torch.max(torch.abs(torch.stack(fake_Y_test_spectrums,0)),0)[0]
-                            labels_X_estimatedT2 = C_XtoY(fake_Y_test_spectrumT2)
-                            labels_X_test_estimated1 = torch.round(torch.mode(labels_X_test_estimateds,0).values)
-                            labels_X_test_estimated2 = torch.round(torch.mean(labels_X_test_estimateds,0))
-                            labels_X_test_estimated3 = torch.round(torch.median(labels_X_test_estimateds,0).values)
-                            labels_X_estimated4 = torch.mean(torch.stack(labels_X_estimateds),0)
-                            labels_X_test_estimated4 = torch.max(labels_X_estimated4, 1)[1]
 
                             g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum[0])
                             g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
-                            G_Image_loss_avg_test[0] += g_y_pix_loss.item() 
-                            G_Class_loss_avg_test[0] += g_y_class_loss.item() 
+                            G_Image_loss_avg_test += g_y_pix_loss.item() 
+                            G_Class_loss_avg_test += g_y_class_loss.item() 
 
-                            for i in range(opts.stack_imgs):
-                                g_y_pix_loss = loss_spec(fake_Y_test_spectrums[i], images_Y_test_spectrum[0])
-                                G_Image_loss_avg_test[i+1] += g_y_pix_loss.item() 
-                                g_y_class_loss = loss_class(labels_X_estimateds[i], labels_X_test)
-                                G_Class_loss_avg_test[i+1] += g_y_class_loss.item() 
-                            g_y_class_loss = loss_class(labels_X_estimated4, labels_X_test)
-                            G_Class_loss_avg_test[opts.stack_imgs+1] += g_y_class_loss.item() 
-
-                            #get the answer
                             _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
-                            _, labels_X_test_estimatedT = torch.max(labels_X_estimatedT, 1)
-                            _, labels_X_test_estimatedT2 = torch.max(labels_X_estimatedT2, 1)
                             test_right_case = (labels_X_test_estimated == labels_X_test)
-                            error_matrix[0] += np.sum(to_data(test_right_case))
-                            test_right_case = (labels_X_test_estimated1 == labels_X_test)
-                            error_matrix[1] += np.sum(to_data(test_right_case))
-                            test_right_case = (labels_X_test_estimated2 == labels_X_test)
-                            error_matrix[2] += np.sum(to_data(test_right_case))
-                            test_right_case = (labels_X_test_estimated3 == labels_X_test)
-                            error_matrix[3] += np.sum(to_data(test_right_case))
-                            test_right_case = (labels_X_test_estimated4 == labels_X_test)
-                            error_matrix[4] += np.sum(to_data(test_right_case))
-                            test_right_case = (labels_X_test_estimatedT == labels_X_test)
-                            error_matrix[5] += np.sum(to_data(test_right_case))
-                            test_right_case = (labels_X_test_estimatedT2 == labels_X_test)
-                            error_matrix[6] += np.sum(to_data(test_right_case))
+                            error_matrix += np.sum(to_data(test_right_case))
 
                             error_matrix_count += opts.batch_size
 
                             if(iteration2==1):
-                                print('---------')
                                 save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, opts)
-                                print(labels_X_test_estimated,'common')
-                                print(labels_X_test_estimated1,'mode')
-                                print(labels_X_test_estimated2,'mean')
-                                print(labels_X_test_estimated3,'median')
-                                print(labels_X_test_estimated4,'meanoutput')
-                                print(labels_X_test_estimateds)
-                                print(labels_X_test,'truth')
-                                print(labels_X_test_estimated == labels_X_test)
-                                print(labels_X_test_estimated1 == labels_X_test)
-                                print(labels_X_test_estimated2 == labels_X_test)
-                                print(labels_X_test_estimated3 == labels_X_test)
-                                print(labels_X_test_estimated4 == labels_X_test)
-
-                    for i in range(4):
-                        print(i, error_matrix[i] / error_matrix_count, G_Image_loss_avg_test[i] , G_Class_loss_avg_test[i])
-                    print(G_Class_loss_avg_test[4])
-                    print(error_matrix[4] / error_matrix_count)
-                    print(error_matrix[5] / error_matrix_count)
-                    print(error_matrix[6] / error_matrix_count)
-
-                    '''
                     error_matrix2 = error_matrix / error_matrix_count
                     print('test accuracy',error_matrix2, error_matrix, error_matrix_count,'imgloss',G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.scaling_for_imaging_loss ,'classloss',G_Class_loss_avg_test/error_matrix_count*opts.batch_size*opts.scaling_for_classification_loss,  'logged to', opts.logfile)
                     with open(opts.logfile,'a') as f:
-                        f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' + str(iteration) +  ' ' + str(error_matrix2)+'\n')'''
+                        f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' + str(iteration) +  ' ' + str(error_matrix2)+'\n')
     return mask_CNN, C_XtoY
