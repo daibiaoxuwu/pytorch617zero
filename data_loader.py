@@ -1,5 +1,3 @@
- data_loader.py
-
 import os
 import random
 import scipy.io as scio
@@ -12,7 +10,7 @@ import pickle
 class lora_dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
 
-    def __init__(self, opts, files_list, folders_list):
+    def __init__(self, opts, files_list):
         self.opts = opts
         self.data_lists = files_list
         if opts.data_dir == '/data/djl/sf7-1b-out-upload':
@@ -29,38 +27,43 @@ class lora_dataset(data.Dataset):
 
     def __getitem__(self, index0):
         for index in range(index0, index0 + len(self.data_lists)):
-            data_file_name = self.data_lists[index % len(self.data_lists)]
+            try:
+                data_file_name = self.data_lists[index % len(self.data_lists)]
 
-            
-            if opts.data_dir == '/data/djl/sf7-1b-out-upload':
-                path = os.path.join(self.opts.data_dir, random.choice(self.folders_list), data_file_name)
-            elif opts.data_dir == '/data/djl/data0306/data':
-                path = os.path.join(self.opts.data_dir, data_file_name)
-            data_perY = self.load_img(path).cuda()
+                
+                if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
+                    paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
+                    data_perY = [self.load_img(path).cuda() for path in paths]
+                elif self.opts.data_dir == '/data/djl/data0306/data':
+                    path = os.path.join(self.opts.data_dir, data_file_name)
+                    data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
 
-            data_file_parts = data_file_name.split('_')
-            data_pers = []
-            for k in range(self.opts.stack_imgs):
-                if opts.data_dir == '/data/djl/sf7-1b-out-upload':
-                    data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                    path = os.path.join(self.opts.data_dir, self.folders_list[k], '_'.join(data_file_parts))
+                data_file_parts = data_file_name.split('_')
+                data_pers = []
+                for k in range(self.opts.stack_imgs):
+                    if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
+                        data_file_parts[1] = str(random.choice(self.opts.snr_list))
+                        path = os.path.join(self.opts.data_dir, self.folders_list[k], '_'.join(data_file_parts))
+                        data_pers.append(self.load_img(path))
+                    elif self.opts.data_dir == '/data/djl/data0306/data':
+                        snr = str(self.opts.snr_list[k])
+                        data_part0 = data_file_parts[0].split('/')
+                        data_part0[-2] = snr
+                        data_file_parts[0] = '/'.join(data_part0)
+                        data_file_parts[1] = snr 
+                        data_file_parts[-1] = str(index % 100 + 1) + '.mat'
+                        path = os.path.join(self.opts.data_dir, '_'.join(data_file_parts))
                     data_pers.append(self.load_img(path))
-                elif opts.data_dir == '/data/djl/data0306/data':
-                    snr = str(self.opts.snr_list[k])
-                    data_part0 = data_file_parts[0].split('/')
-                    data_part0[-2] = snr
-                    data_file_parts[0] = '/'.join(data_part0)
-                    data_file_parts[1] = snr 
-                    data_file_parts[-1] = str(index % 100 + 1) + '.mat'
-                    path = os.path.join(self.opts.data_dir, '_'.join(data_file_parts))
-                data_pers.append(self.load_img(path))
 
-            data_pers = torch.stack(data_pers).cuda()
+                data_pers = torch.stack(data_pers).cuda()
 
-            label_per = int(data_file_parts[0])
-            label_per = torch.tensor(label_per, dtype=int).cuda()
+                label_per = int(data_file_parts[0].split('/')[-1])
+                label_per = torch.tensor(label_per, dtype=int).cuda()
 
-            return data_pers, label_per, data_perY
+                return data_pers, label_per, data_perY
+            except ValueError as e:
+                print(e, self.data_lists[index % len(self.data_lists)])
+
         raise StopIteration 
 
 
@@ -92,6 +95,8 @@ def lora_loader(opts):
     print('creating dataloader',opts.snr_list)
     with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:
         files_train,files_test = pickle.load(g)
+    random.shuffle(files_train)
+    random.shuffle(files_test)
 
     training_dataset = lora_dataset(opts, files_train)
     testing_dataset = lora_dataset(opts, files_train)

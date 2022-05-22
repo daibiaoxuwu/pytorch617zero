@@ -63,6 +63,7 @@ if __name__ == "__main__":
     opts.stft_overlap = opts.stft_window // 2
     opts.conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
     opts.freq_size = opts.n_classes
+    if len(opts.snr_list)<opts.stack_imgs: opts.snr_list = [opts.snr_list[0] for i in range(opts.stack_imgs)]
     if opts.load_checkpoint_dir == '/data/djl':
         opts.load_checkpoint_dir = opts.checkpoint_dir
 
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     ##load model checkpoint
     if opts.load == 'yes':
         if opts.load_iters == -1:
-            vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir)]
+            vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir) if fname[-4:] == '.pkl']
             opts.load_iters = max(vals)
             print('load newest iteration:',opts.load_iters)
         mask_CNN, C_XtoY = load_checkpoint(opts)
