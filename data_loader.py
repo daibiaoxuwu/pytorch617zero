@@ -63,6 +63,8 @@ class lora_dataset(data.Dataset):
                 return data_pers, label_per, data_perY
             except ValueError as e:
                 print(e, self.data_lists[index % len(self.data_lists)])
+            except OSError as e:
+                print(e, self.data_lists[index % len(self.data_lists)])
 
         raise StopIteration 
 
@@ -92,7 +94,6 @@ def lora_loader(opts):
         with open(dpath,'wb') as g: 
             pickle.dump([files_train,files_test], g)
     """
-    print('creating dataloader',opts.snr_list)
     with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:
         files_train,files_test = pickle.load(g)
     random.shuffle(files_train)
@@ -103,7 +104,6 @@ def lora_loader(opts):
 
     training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
     testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
-    print('finish')
     return training_dloader,testing_dloader
 
 

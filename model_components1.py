@@ -9,13 +9,21 @@ import numpy as np
 import os
 from utils import *
 
-class classificationHybridModel(nn.Module):
+def norm(y):
+    for i in range(y.shape[1]):
+        y_abs = torch.abs(y[:,i])
+        y_abs_max = torch.tensor(
+            list(map(lambda x: torch.max(x), y_abs)))
+        y_abs_max = to_var(torch.unsqueeze(torch.unsqueeze(y_abs_max, 1), 2))
+        y[:,i] = torch.div(y[:,i], y_abs_max)
+    return y
+class classificationHybridModel1(nn.Module):
     """Defines the architecture of the discriminator network.
        Note: Both discriminators D_X and D_Y have the same architecture in this assignment.
     """
 
     def __init__(self, conv_dim_in=2, conv_dim_out=128, conv_dim_lstm=1024):
-        super(classificationHybridModel, self).__init__()
+        super(classificationHybridModel1, self).__init__()
 
         self.out_size = conv_dim_out
         self.conv1 = nn.Conv2d(conv_dim_in, 16, (3, 3), stride=(2, 2), padding=(1, 1))
@@ -43,59 +51,67 @@ class classificationHybridModel(nn.Module):
         return out
 
 
-class maskCNNModel(nn.Module):
+class maskCNNModel1(nn.Module):
     def __init__(self, opts):
-        super(maskCNNModel, self).__init__()
+        super(maskCNNModel1, self).__init__()
         self.opts = opts
         self.writeindex = 0
 
         self.conv1 = nn.Sequential(
-            # cnn1
-            nn.ZeroPad2d((3, 3, 0, 0)),
-            nn.Conv2d(opts.x_image_channel, 64, kernel_size=(1, 7), dilation=(1, 1)),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(opts.x_image_channel, 64, kernel_size=(3, 3), dilation=(1, 1)),
             nn.BatchNorm2d(64), nn.ReLU(),
-
-            # cnn2
-            nn.ZeroPad2d((0, 0, 3, 3)),
-            nn.Conv2d(64, 64, kernel_size=(7, 1), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
-
-            # cnn3
-            nn.ZeroPad2d(2),
-            nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(1, 1)),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(64, 128, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(128), nn.ReLU(),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(128, 64, kernel_size=(3, 3), dilation=(1, 1)),
             nn.BatchNorm2d(64), nn.ReLU())
         self.conv2 = nn.Sequential(
-            # cnn4
-            nn.ZeroPad2d((2, 2, 4, 4)),
-            nn.Conv2d(64*4+2, 64, kernel_size=(5, 5), dilation=(2, 1)),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(258, 64, kernel_size=(3, 3), dilation=(1, 1)),
             nn.BatchNorm2d(64), nn.ReLU(),
-
-            # cnn5
-            nn.ZeroPad2d((2, 2, 8, 8)),
-            nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(4, 1)),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(64, 128, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(128), nn.ReLU(),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(128, 64, kernel_size=(3, 3), dilation=(1, 1)),
             nn.BatchNorm2d(64), nn.ReLU())
-
         self.conv3 = nn.Sequential(
-            # cnn6
-            nn.ZeroPad2d((2, 2, 16, 16)),
-            nn.Conv2d(64*4+2, 64, kernel_size=(5, 5), dilation=(8, 1)),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(258, 64, kernel_size=(3, 3), dilation=(1, 1)),
             nn.BatchNorm2d(64), nn.ReLU(),
-
-            # cnn7
-            nn.ZeroPad2d((2, 2, 32, 32)),
-            nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(16, 1)),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(64, 128, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(128), nn.ReLU(),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(128, 64, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(64), nn.ReLU())
+        self.conv4 = nn.Sequential(
+            nn.ZeroPad2d(1),
+            nn.Conv2d(258, 64, kernel_size=(3, 3), dilation=(1, 1)),
             nn.BatchNorm2d(64), nn.ReLU(),
-
-            # cnn8
-            nn.Conv2d(64, 8, kernel_size=(1, 1), dilation=(1, 1)),
-
-        )
+            nn.ZeroPad2d(1),
+            nn.Conv2d(64, 128, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(128), nn.ReLU(),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(128, 64, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(64), nn.ReLU())
+        self.conv5 = nn.Sequential(
+            nn.ZeroPad2d(1),
+            nn.Conv2d(258, 64, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(64, 128, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(128), nn.ReLU(),
+            nn.ZeroPad2d(1),
+            nn.Conv2d(128, 64, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.Conv2d(64, 8, kernel_size=(1, 1), dilation=(1, 1)))
 
         self.lstm = nn.LSTM( opts.conv_dim_lstm, opts.lstm_dim, batch_first=True, bidirectional=True)
-
         self.fc1 = nn.Linear(2 * opts.lstm_dim, opts.fc1_dim)
         self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.y_image_channel)
-        create_dir('/data/djl/temp'+str(self.opts.snr_list[0]))
 
     def forward(self, xs):
         self.writeindex+=1
@@ -122,7 +138,25 @@ class maskCNNModel(nn.Module):
             outs[idx] = torch.cat((outs[idx],outmax,outmin,outavg,xsnew[idx]),1)
 
         for idx in range(len(xs)):
-            out = self.conv3(outs[idx])
+            outs[idx] = self.conv3(outs[idx])
+        outss = torch.stack(outs,1)
+        outmax = torch.max(outss,1)[0]
+        outmin = torch.min(outss,1)[0]
+        outavg = torch.mean(outss,1)
+        for idx in range(len(xs)):
+            outs[idx] = torch.cat((outs[idx],outmax,outmin,outavg,xsnew[idx]),1)
+
+        for idx in range(len(xs)):
+            outs[idx] = self.conv4(outs[idx])
+        outss = torch.stack(outs,1)
+        outmax = torch.max(outss,1)[0]
+        outmin = torch.min(outss,1)[0]
+        outavg = torch.mean(outss,1)
+        for idx in range(len(xs)):
+            outs[idx] = torch.cat((outs[idx],outmax,outmin,outavg,xsnew[idx]),1)
+
+        for idx in range(len(xs)):
+            out = self.conv5(outs[idx])
             out = out.transpose(1, 2).contiguous()
             out = out.view(out.size(0), out.size(1), -1)
             out, _ = self.lstm(out)
@@ -134,5 +168,5 @@ class maskCNNModel(nn.Module):
             out = out.view(out.size(0), out.size(1), self.opts.y_image_channel, -1)
             out = out.transpose(1, 2).contiguous()
             out = out.transpose(2, 3).contiguous()
-            outs[idx] = out * xs[idx]
+            outs[idx] = norm(out * xs[idx])
         return outs

@@ -69,26 +69,21 @@ def create_dir(directory):
 def print_opts(opts):
     """Prints the values of all command-line arguments.
     """
-    print('=' * 80)
-    print('Opts'.center(80))
-    print('-' * 80)
     now = datetime.now()
     current_time = now.strftime("%Y-%m-%d %H:%M:%S")
     print("Current Time =", current_time)
-
-    print('--batch_size', opts.batch_size)
-    print('--scaling_for_imaging_loss', opts.scaling_for_imaging_loss)
-    print('--scaling_for_classification_loss', opts.scaling_for_classification_loss)
-    print('--data_dir', opts.data_dir)
-    print("--snr_list", opts.snr_list)
-    print('--ratio_bt_train_and_test', opts.ratio_bt_train_and_test)
-    print('--checkpoint_dir', opts.checkpoint_dir)
-    print('--load', opts.load)
-    print('--log_step', opts.log_step)
-    print('--test_step', opts.test_step)
-    print('--train_iters', opts.train_iters)
-    print('--checkpoint_every', opts.checkpoint_every)
-    print('--load_checkpoint_dir', opts.load_checkpoint_dir)
-    print('--stack_imgs', opts.stack_imgs)
-
+    
+    strlist = [
+    ' data_dir              '+str(opts.data_dir),
+    ' snr_list              '+str(opts.snr_list),
+    ' stack_imgs            '+str(opts.stack_imgs),
+    ' batch_size            '+str(opts.batch_size),
+    ' lr                    '+str(opts.lr),
+    ' w_image               '+str(opts.w_image),
+    ' checkpoint_dir        '+str(opts.checkpoint_dir),
+    ' load_checkpoint_dir   '+str(opts.load_checkpoint_dir),
+    ' load                  '+str(opts.load),
+    ' load_iters            '+str(opts.load_iters)]
+    print('\n'.join(strlist))
     print('=' * 80)
+    return strlist
