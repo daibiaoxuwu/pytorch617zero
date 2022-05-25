@@ -24,6 +24,7 @@ from utils import to_var, to_data, spec_to_network_input, create_dir
 import torch.autograd.profiler as profiler
 import time
 import math
+from torchvision import transforms
 SEED = 11
 
 # Set the random seed manually for reproducibility.
@@ -58,14 +59,16 @@ def merge_images(sources, targets, Y, opts):
     _, _, h, w = sources[0].shape
     row = int(np.sqrt(opts.batch_size))
     column = math.ceil(opts.batch_size / row)
-    merged = np.zeros([opts.y_image_channel, row * h * opts.stack_imgs, column * w * 3])
+    merged = np.zeros([1, row * h * opts.stack_imgs, column * w * 4])
     for stack_idx in range(opts.stack_imgs):
         for idx, (s, t, y) in enumerate(zip(sources[stack_idx], targets[stack_idx], Y[stack_idx])):
             i = idx // column
             j = idx % column
-            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = s
-            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w:(j * 3 + 2) * w] = t
-            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 2) * w:(j * 3 + 3) * w] = y
+            t = (t-np.min(t))/(np.max(t)-np.min(t))
+            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 4) * w:(j * 4 + 1) * w] = s[0]/2+0.5
+            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 4 + 1) * w:(j * 4 + 2) * w] = s[1]
+            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 4 + 2) * w:(j * 4 + 3) * w] = t
+            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 4 + 3) * w:(j * 4 + 4) * w] = y
     return merged.transpose(1, 2, 0)
 
 
@@ -78,14 +81,15 @@ def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, opts):
 
     Y, fake_Y = [to_data(i) for i in fixed_Y], [to_data(i) for i in fake_Y]
 
-    merged = merge_images(fixed_X, fake_Y, Y, opts)
+    merged_all = merge_images(fixed_X, fake_Y, Y, opts)
 
-    path = os.path.join(opts.checkpoint_dir,
-                        'sample-{:06d}-Y.png'.format(iteration))
-    merged = np.abs(merged[:, :, 0] + 1j * merged[:, :, 1])
-    merged = (merged - np.amin(merged)) / (np.amax(merged) - np.amin(merged)) * 255
-    merged = cv2.flip(merged, 0)
-    cv2.imwrite(path, merged)
+    for i in range(1):
+        path = os.path.join(opts.checkpoint_dir,
+                            'sample-{:06d}-Y.png'.format(iteration+i))
+        merged = merged_all[:, :, i] 
+        merged = (merged - np.amin(merged)) / (np.amax(merged) - np.amin(merged)) * 255
+        merged = cv2.flip(merged, 0)
+        cv2.imwrite(path, merged)
     print('SAMPLE: {}'.format(path))
 
 
@@ -116,8 +120,8 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             labels_X = labels_X.cuda()
             if iteration>opts.init_train_iter+opts.train_iters:break
             iteration+=1
-            if iteration % 3000 == 0:
-                opts.lr = opts.lr * 0.85
+            if (iteration-opts.init_train_iter) % 1000 == 0:
+                opts.lr = opts.lr * 0.5
                 g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
                 print('lr',str(opts.lr))
                 with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'lr changed: '+str(opts.lr))
@@ -137,11 +141,17 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             for i in range(opts.stack_imgs):
                 images_X_spectrum_raw = torch.stft(input=images_X.select(1,i), n_fft=opts.stft_nfft, hop_length=opts.stft_overlap,
                                                    win_length=opts.stft_window, pad_mode='constant');
-                images_X_spectrum.append( spec_to_network_input(images_X_spectrum_raw, opts) )
+                temp = spec_to_network_input(images_X_spectrum_raw, opts)
+                temp1 = torch.angle(temp[:,0,:,:]+1j*temp[:,1,:,:])/np.pi
+                temp2 = torch.abs(temp[:,0,:,:]+1j*temp[:,1,:,:])
+                images_X_spectrum.append(torch.stack([temp1,temp2],1))
+                
             
                 images_Y_spectrum_raw = torch.stft(input=images_Y, n_fft=opts.stft_nfft, hop_length=opts.stft_overlap,
                                                    win_length=opts.stft_window, pad_mode='constant');
-                images_Y_spectrum.append( spec_to_network_input(images_Y_spectrum_raw, opts) )
+                temp = spec_to_network_input(images_Y_spectrum_raw, opts)
+                temp = torch.abs(temp[:,0,:,:]+1j*temp[:,1,:,:])
+                images_Y_spectrum.append(temp)
             
             #########################################
             ##              FORWARD
@@ -164,14 +174,14 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             #########################################
             ##     LOG THE LOSS OF LATEST opts.log_step*5 STEPS
             #########################################
-            if len(G_Y_loss_avg)<opts.log_step*5:
+            if len(G_Y_loss_avg)<opts.log_step:
                 G_Y_loss_avg.append(G_Y_loss.item())
                 G_Image_loss_avg.append(G_Image_loss.item())
                 G_Class_loss_avg.append(G_Class_loss.item())
             else:
-                G_Y_loss_avg[iteration % opts.log_step*5] = G_Y_loss.item()
-                G_Image_loss_avg[iteration % opts.log_step*5] = G_Image_loss.item()
-                G_Class_loss_avg[iteration % opts.log_step*5] = G_Class_loss.item()
+                G_Y_loss_avg[iteration % opts.log_step] = G_Y_loss.item()
+                G_Image_loss_avg[iteration % opts.log_step] = G_Image_loss.item()
+                G_Class_loss_avg[iteration % opts.log_step] = G_Class_loss.item()
             if iteration % opts.log_step == 0:
                 output_lst = ["{:6d}".format(iteration),
                                 "{:6.3f}".format(np.mean(G_Y_loss_avg)),
@@ -214,12 +224,17 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                                 images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
                                                                         hop_length=opts.stft_overlap, win_length=opts.stft_window,
                                                                         pad_mode='constant');
-                                images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
+                                temp = spec_to_network_input(images_X_test_spectrum_raw, opts)
+                                temp1 = torch.angle(temp[:,0,:,:]+1j*temp[:,1,:,:])/np.pi
+                                temp2 = torch.abs(temp[:,0,:,:]+1j*temp[:,1,:,:])
+                                images_X_test_spectrum.append(torch.stack([temp1,temp2],1))
 
                                 images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
                                                                         hop_length=opts.stft_overlap, win_length=opts.stft_window,
                                                                         pad_mode='constant');
-                                images_Y_test_spectrum.append(spec_to_network_input(images_Y_test_spectrum_raw, opts))
+                                temp = spec_to_network_input(images_Y_test_spectrum_raw, opts)
+                                temp = torch.abs(temp[:,0,:,:]+1j*temp[:,1,:,:])
+                                images_Y_test_spectrum.append(temp)
 
                             # forward
                             if opts.model_ver == 0: fake_Y_test_spectrums = [mask_CNN(i) for i in images_X_test_spectrum]
@@ -244,5 +259,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                     print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
                     with open(opts.logfile2,'a') as f:
                         f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+                    with open(opts.logfile,'a') as f:
+                        f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
                     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS  TIME  ----TRAINING----')
     return mask_CNN, C_XtoY

@@ -11,6 +11,7 @@ import torch
 import sys
 from model_components0 import maskCNNModel0, classificationHybridModel0
 from model_components1 import maskCNNModel1, classificationHybridModel1
+from model_components2 import maskCNNModel2, classificationHybridModel2
 from utils import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -81,12 +82,17 @@ if __name__ == "__main__":
     elif opts.model_ver == 1:
         maskCNNModel = maskCNNModel1
         classificationHybridModel = classificationHybridModel1
+    elif opts.model_ver == 2:
+        maskCNNModel = maskCNNModel2
+        classificationHybridModel = classificationHybridModel2
     else: raise ValueError('Unknown Model Version')
 
     if opts.load == 'yes':
         if opts.load_iters == -1:
             vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir) if fname[-4:] == '.pkl']
-            opts.load_iters = max(vals)
+            if len(vals)==0: opts.load = 'no'
+            else: opts.load_iters = max(vals)
+    if opts.load == 'yes':
         print('LOAD ITER:  ',opts.load_iters)
         mask_CNN, C_XtoY = load_checkpoint(opts, maskCNNModel, classificationHybridModel)
     else:
