@@ -120,7 +120,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             labels_X = labels_X.cuda()
             if iteration>opts.init_train_iter+opts.train_iters:break
             iteration+=1
-            if (iteration-opts.init_train_iter) % 1000 == 0:
+            if (iteration-opts.init_train_iter) % 10000 == 0:
                 opts.lr = opts.lr * 0.5
                 g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
                 print('lr',str(opts.lr))
@@ -159,7 +159,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             if opts.model_ver == 0: fake_Y_spectrum = [mask_CNN(i) for i in images_X_spectrum]
             else: fake_Y_spectrum = mask_CNN(images_X_spectrum) #CNN input: a list of images, output: a list of images
             fake_Y_spectrum = torch.mean(torch.stack(fake_Y_spectrum,0),0) #average of CNN outputs
-            
+
             g_y_pix_loss = loss_spec(fake_Y_spectrum, images_Y_spectrum[0])
             labels_X_estimated = C_XtoY(fake_Y_spectrum)
             g_y_class_loss = loss_class(labels_X_estimated, labels_X)

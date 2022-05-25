@@ -15,7 +15,7 @@ class classificationHybridModel0(nn.Module):
         super(classificationHybridModel0, self).__init__()
 
         self.out_size = conv_dim_out
-        self.conv1 = nn.Conv2d(conv_dim_in, 16, (3, 3), stride=(2, 2), padding=(1, 1))
+        self.conv1 = nn.Conv2d(1, 16, (3, 3), stride=(2, 2), padding=(1, 1))
         self.pool1 = nn.MaxPool2d((2, 2), stride=(2, 2))
         self.dense = nn.Linear(conv_dim_lstm * 4, conv_dim_out * 4)
         self.fcn1 = nn.Linear(conv_dim_out * 4, conv_dim_out * 2)
@@ -94,7 +94,7 @@ class maskCNNModel0(nn.Module):
             bidirectional=True)
 
         self.fc1 = nn.Linear(2 * opts.lstm_dim, opts.fc1_dim)
-        self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.y_image_channel)
+        self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size)
 
     def forward(self, x):
         out = x.transpose(2, 3).contiguous()
@@ -107,9 +107,9 @@ class maskCNNModel0(nn.Module):
         out = F.relu(out)
         out = self.fc2(out)
 
-        out = out.view(out.size(0), out.size(1), self.opts.y_image_channel, -1)
+        out = out.view(out.size(0), out.size(1), 1, -1)
         out = torch.sigmoid(out)
         out = out.transpose(1, 2).contiguous()
         out = out.transpose(2, 3).contiguous()
-        masked = out * x  # out is mask, masked is denoised
+        masked = out
         return masked
