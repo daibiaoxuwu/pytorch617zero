@@ -25,7 +25,7 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     state_dict = torch.load(maskCNN_path, map_location=lambda storage, loc: storage)
     #state_dict['conv2.1.weight']= torch.cat((state_dict['conv2.1.weight'], torch.zeros(64,258-130,5,5)),1)
     #state_dict['conv3.1.weight']= torch.cat((state_dict['conv3.1.weight'], torch.zeros(64,258-130,5,5)),1)
-    maskCNN.load_state_dict(state_dict, strict=True)
+    maskCNN.load_state_dict(state_dict, strict=False)
 
     C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel,
                                        conv_dim_out=opts.n_classes,

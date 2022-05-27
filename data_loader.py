@@ -100,10 +100,10 @@ def lora_loader(opts):
     random.shuffle(files_test)
 
     training_dataset = lora_dataset(opts, files_train)
-    testing_dataset = lora_dataset(opts, files_train)
+    testing_dataset = lora_dataset(opts, files_test)
 
-    training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
-    testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers)
+    training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=True, num_workers=opts.num_workers)
+    testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=True, num_workers=opts.num_workers)
     return training_dloader,testing_dloader
 
 

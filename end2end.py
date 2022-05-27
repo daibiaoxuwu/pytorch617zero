@@ -165,14 +165,14 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             #########################################
             ##     LOG THE LOSS OF LATEST opts.log_step*5 STEPS
             #########################################
-            if len(G_Y_loss_avg)<opts.log_step*5:
+            if len(G_Y_loss_avg)<opts.log_step:
                 G_Y_loss_avg.append(G_Y_loss.item())
                 G_Image_loss_avg.append(G_Image_loss.item())
                 G_Class_loss_avg.append(G_Class_loss.item())
             else:
-                G_Y_loss_avg[iteration % opts.log_step*5] = G_Y_loss.item()
-                G_Image_loss_avg[iteration % opts.log_step*5] = G_Image_loss.item()
-                G_Class_loss_avg[iteration % opts.log_step*5] = G_Class_loss.item()
+                G_Y_loss_avg[iteration % opts.log_step] = G_Y_loss.item()
+                G_Image_loss_avg[iteration % opts.log_step] = G_Image_loss.item()
+                G_Class_loss_avg[iteration % opts.log_step] = G_Class_loss.item()
             if iteration % opts.log_step == 0:
                 output_lst = ["{:6d}".format(iteration),
                                 "{:6.3f}".format(np.mean(G_Y_loss_avg)),
@@ -255,6 +255,8 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         scoreboards = [0, 0]
                     else:
                         scoreboards.append(error_matrix2)
-                        
+                    if(error_matrix2>=0.99):
+                        print('REACHED 0.99 ACC, TERMINATINg...')
+                        break
                     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS  TIME  ----TRAINING----')
     return mask_CNN, C_XtoY
