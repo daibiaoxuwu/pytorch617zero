@@ -36,7 +36,7 @@ class classificationHybridModel2(nn.Module):
 
         self.drop1 = nn.Dropout(0.2)
         self.drop2 = nn.Dropout(0.5)
-        self.act = nn.ReLU()
+        self.act = nn.LeakyReLU()
 
     def forward(self, x):
         out = self.act(self.conv1(x))
@@ -62,98 +62,77 @@ class maskCNNModel2(nn.Module):
             # cnn1
             nn.ZeroPad2d((3, 3, 0, 0)),
             nn.Conv2d(opts.x_image_channel, 64, kernel_size=(1, 7), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.BatchNorm2d(64), nn.LeakyReLU(),
 
             # cnn2
             nn.ZeroPad2d((0, 0, 3, 3)),
             nn.Conv2d(64, 64, kernel_size=(7, 1), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.BatchNorm2d(64), nn.LeakyReLU(),
 
             # cnn4
             nn.ZeroPad2d((2, 2, 4, 4)),
             nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(2, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.BatchNorm2d(64), nn.LeakyReLU(),
 
             nn.ZeroPad2d(1),
             nn.Conv2d(64, 64, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(64))
+            nn.BatchNorm2d(64),
+
+            nn.ZeroPad2d(1),
+            nn.Conv2d(64, 64, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(64),
+
+            nn.ZeroPad2d(1),
+            nn.Conv2d(64, 256, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(256),
+            )
 
         self.conv1f = nn.Sequential(
             nn.ZeroPad2d(1),
-            nn.Conv2d(2, 64, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(64))
+            nn.Conv2d(2, 256, kernel_size=(3, 3), dilation=(1, 1)),
+            nn.BatchNorm2d(256))
 
-        self.conv2 = nn.Sequential(
+        self.conv2 = []
+        for i in range(5):
+            self.conv2.append( nn.Sequential(
 
-            # cnn3
-            nn.ZeroPad2d(2),
-            nn.Conv2d(258, 64, kernel_size=(5, 5), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+                # cnn3
+                nn.Conv2d(256*3+2, 64, kernel_size=(1, 1), dilation=(1, 1)),
+                nn.BatchNorm2d(64), nn.LeakyReLU(),
 
-            # cnn4
-            nn.ZeroPad2d((2, 2, 4, 4)),
-            nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(2, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+                nn.ZeroPad2d(1),
+                nn.Conv2d(64, 64, kernel_size=(3, 3), dilation=(1, 1)),
+                nn.BatchNorm2d(64), nn.LeakyReLU(),
 
-            nn.ZeroPad2d(1),
-            nn.Conv2d(64, 64, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(64))
+                nn.Conv2d(64, 256, kernel_size=(1, 1), dilation=(1, 1)),
+                nn.BatchNorm2d(256)).cuda())
 
-        self.conv2f = nn.Sequential(
-            nn.ZeroPad2d(1),
-            nn.Conv2d(258, 64, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(64))
-
-        self.conv22 = nn.Sequential(
-
-            # cnn3
-            nn.ZeroPad2d(2),
-            nn.Conv2d(258, 64, kernel_size=(5, 5), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
-
-            # cnn4
-            nn.ZeroPad2d((2, 2, 4, 4)),
-            nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(2, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
-
-            nn.ZeroPad2d(1),
-            nn.Conv2d(64, 64, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(64))
-
-        self.conv22f = nn.Sequential(
-            nn.ZeroPad2d(1),
-            nn.Conv2d(258, 64, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(64))
 
         self.conv3 = nn.Sequential(
 
             # cnn3
             nn.ZeroPad2d(2),
-            nn.Conv2d(258, 64, kernel_size=(5, 5), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.Conv2d(256, 64, kernel_size=(5, 5), dilation=(1, 1)),
+            nn.BatchNorm2d(64), nn.LeakyReLU(),
 
             # cnn4
             nn.ZeroPad2d((2, 2, 4, 4)),
             nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(2, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.BatchNorm2d(64), nn.LeakyReLU(),
 
             # cnn5
             nn.ZeroPad2d((2, 2, 8, 8)),
             nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(4, 1)),
-            nn.BatchNorm2d(64), nn.ReLU(),
+            nn.BatchNorm2d(64), nn.LeakyReLU(),
 
             # cnn8
             nn.Conv2d(64, 8, kernel_size=(1, 1), dilation=(1, 1)),
             nn.BatchNorm2d(8))
 
-        self.conv3f = nn.Sequential(
-            nn.ZeroPad2d(1),
-            nn.Conv2d(258, 8, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(8))
-
         #self.lstm = nn.LSTM( opts.conv_dim_lstm, opts.lstm_dim, batch_first=True, bidirectional=True)
         self.fc1 = nn.Linear(opts.conv_dim_lstm, opts.fc1_dim)
         self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size)
+        self.final = nn.BatchNorm2d(2)
 
     def merge_images(self, sources, opts):
         """Creates a grid consisting of pairs of columns, where the first column in
@@ -188,67 +167,41 @@ class maskCNNModel2(nn.Module):
 
     def forward(self, xs):
         self.writeindex+=1
-        outs = []
         xsnew = [x.transpose(2, 3).contiguous() for x in xs]
-        for x in xsnew:
-            out1 = self.conv1(x)
-            out2 = self.conv1f(x)
-            outs.append(nn.ReLU()(out1+out2))
-        #self.save_samples(outs, self.opts, 1)
-            
+        
+        # CNN_1
+        outs = [self.conv1(x)+self.conv1f(x) for x in xsnew]
 
-        outss = torch.stack(outs,1)
-        outmax = torch.max(outss,1)[0]
-        outmin = torch.min(outss,1)[0]
-        outavg = torch.mean(outss,1)
-        outs2 = []
-        for idx in range(len(xs)):
-            x = torch.cat((outs[idx],outmax,outmin,outavg,xsnew[idx]),1)
-            out1 = self.conv2(x)
-            out2 = self.conv2f(x)
-            outs2.append( nn.ReLU()(out1+out2))
-        #self.save_samples([outmax,], self.opts, 5)
-        #self.save_samples([outmin,], self.opts, 6)
-        #self.save_samples([outavg,], self.opts, 7)
-        outss2 = torch.stack(outs2,1)
-        outmax2 = torch.max(outss2,1)[0]
-        outmin2 = torch.min(outss2,1)[0]
-        outavg2 = torch.mean(outss2,1)
-        outs3 = []
-        for idx in range(len(xs)):
-            x = torch.cat((outs2[idx],outmax2,outmin2,outavg2,xsnew[idx]),1)
-            out21 = self.conv22(x)
-            out22 = self.conv22f(x)
-            outs3.append( nn.ReLU()(out21+out22))
 
-        outss3 = torch.stack(outs3,1)
-        outmax3 = torch.max(outss3,1)[0]
-        outmin3 = torch.min(outss3,1)[0]
-        outavg3 = torch.mean(outss3,1)
-        outs4 = []
-        for idx in range(len(xs)):
-            x = torch.cat((outs2[idx],outmax3,outmin3,outavg3,xsnew[idx]),1)
-            out31 = self.conv3(x)
-            out32 = self.conv3f(x)
-            outs4.append( nn.ReLU()(out31+out32))
-        #self.save_samples([outmax,], self.opts, 8)
-        #self.save_samples([outmin,], self.opts, 9)
-        #self.save_samples([outavg,], self.opts, 10)
+        for i in range(5):
+
+            # Merge
+            outss = torch.stack(outs,1)
+            outavg = torch.mean(outss,1)
+            outmax = torch.max(outss,1)[0]-0.01*outavg
+            outmin = torch.min(outss,1)[0]+0.01*outavg
+
+            outs2 = []
+            for idx in range(len(xs)):
+                # Distribute
+                x = torch.cat((outs[idx],outmax,outmin,xsnew[idx]),1)
+
+                # CNN_2
+                out1 = self.conv2[i](x)
+                outs2.append( out1 + outs[idx] )
+            outs = outs2
 
         for idx in range(len(xs)):
-        #    outs[idx] = out
-        #self.save_samples(outs, self.opts, 3)
-        #for idx in range(len(xs)):
-            out = outs4[idx].transpose(1, 2).contiguous()
+            out = self.conv3(outs[idx]).transpose(1, 2).contiguous()
             out = out.view(out.size(0), out.size(1), -1)
             #out, _ = self.lstm(out)
-            #out = F.relu(out)
+            out = nn.LeakyReLU()(out)
             out = self.fc1(out)
-            out = F.relu(out)
+            out = nn.LeakyReLU()(out)
             out = self.fc2(out)
 
             out = out.view(out.size(0), out.size(1), 1, -1)
             out = out.transpose(1, 2).contiguous()
             out = out.transpose(2, 3).contiguous()
-            outs[idx] = out * xs[idx]
+            outs[idx] = self.final(out * xs[idx])
         return outs

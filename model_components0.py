@@ -48,7 +48,7 @@ class maskCNNModel0(nn.Module):
         self.conv = nn.Sequential(
             # cnn1
             nn.ZeroPad2d((3, 3, 0, 0)),
-            nn.Conv2d(opts.x_image_channel, 64, kernel_size=(1, 7), dilation=(1, 1)),
+            nn.Conv2d(opts.x_image_channel*3, 64, kernel_size=(1, 7), dilation=(1, 1)),
             nn.BatchNorm2d(64), nn.ReLU(),
 
             # cnn2
@@ -94,7 +94,7 @@ class maskCNNModel0(nn.Module):
             bidirectional=True)
 
         self.fc1 = nn.Linear(2 * opts.lstm_dim, opts.fc1_dim)
-        self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.y_image_channel)
+        self.fc3 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.y_image_channel * 3)
 
     def forward(self, x):
         out = x.transpose(2, 3).contiguous()
@@ -105,10 +105,10 @@ class maskCNNModel0(nn.Module):
         out = F.relu(out)
         out = self.fc1(out)
         out = F.relu(out)
-        out = self.fc2(out)
+        out = self.fc3(out)
 
-        out = out.view(out.size(0), out.size(1), self.opts.y_image_channel, -1)
-        out = torch.sigmoid(out)
+        out = out.view(out.size(0), out.size(1), self.opts.y_image_channel * 3, -1)
+        out = torch.tanh(out) #sigmoid or tanh
         out = out.transpose(1, 2).contiguous()
         out = out.transpose(2, 3).contiguous()
         masked = out * x  # out is mask, masked is denoised

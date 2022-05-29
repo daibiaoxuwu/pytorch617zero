@@ -98,9 +98,8 @@ if __name__ == "__main__":
     else:
         mask_CNN = maskCNNModel(opts)
         C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.conv_dim_lstm)
-        if torch.cuda.is_available():
-            mask_CNN.cuda()
-            C_XtoY.cuda()
+        mask_CNN.cuda()
+        C_XtoY.cuda()
     
     #Loads the data, creates checkpoint and sample directories, and starts the training loop.
 
