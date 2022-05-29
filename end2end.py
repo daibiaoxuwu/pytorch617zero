@@ -285,5 +285,5 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                     if(error_matrix2>=0.99):
                         print('REACHED 0.99 ACC, TERMINATINg...')
                         break
-                    print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING----')
+                    print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
     return mask_CNN, C_XtoY
