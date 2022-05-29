@@ -34,8 +34,8 @@ class classificationHybridModel2(nn.Module):
         self.fcn2 = nn.Linear(2 * conv_dim_out, conv_dim_out)
         self.softmax = nn.Softmax(dim=1)
 
-        self.drop1 = nn.Dropout(0.2)
-        self.drop2 = nn.Dropout(0.5)
+        self.drop1 = nn.Dropout(0.1)
+        self.drop2 = nn.Dropout(0.1)
         self.act = nn.LeakyReLU()
 
     def forward(self, x):

@@ -118,7 +118,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
     while iteration < opts.init_train_iter + opts.train_iters:
         train_iter = iter(training_dataloader)
         print('-----START NEW TRAINING EPOCH-----')
-        for images_X, labels_X, images_Y in train_iter:
+        for images_X, labels_X, images_Y, data_file_name in train_iter:
             mask_CNN.train()
             C_XtoY.train()
             labels_X = labels_X.cuda()
@@ -223,7 +223,8 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                     iteration2 = 0
                     G_Image_loss_avg_test = 0
                     G_Class_loss_avg_test = 0
-                    for images_X_test, labels_X_test, images_Y_test0 in test_iter:
+                    sample_cnt = 0
+                    for images_X_test, labels_X_test, images_Y_test0, data_file_name in test_iter:
                             if iteration2 >= opts.max_test_iters: break
                             iteration2 += 1
                             labels_X_test = labels_X_test.cuda()
@@ -265,8 +266,11 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
 
                             error_matrix_count += opts.batch_size
 
-                            if(iteration2==1):
+                            if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
+                                sample_cnt+=1
                                 print(labels_X_test_estimated, labels_X_test)
+                                print(test_right_case.astype(np.int))
+                                print(data_file_name)
                                 save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, opts)
                     error_matrix2 = error_matrix / error_matrix_count
                     print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
@@ -274,7 +278,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
                     with open(opts.logfile,'a') as f:
                         f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
-                    if error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00001:
+                    if error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00005:
                         opts.lr = opts.lr * 0.5
                         g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
                         print('------------INSUFFICIENT PROGRESS, DOWNGRADING LREANING RATE TO',str(opts.lr),'------------')
@@ -284,6 +288,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         scoreboards.append(error_matrix2)
                     if(error_matrix2>=0.99):
                         print('REACHED 0.99 ACC, TERMINATINg...')
+                        iteration = opts.init_train_iter + opts.train_iters + 1
                         break
                     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
     return mask_CNN, C_XtoY

@@ -15,6 +15,7 @@ class lora_dataset(data.Dataset):
         self.data_lists = files_list
         if opts.data_dir == '/data/djl/sf7-1b-out-upload':
             self.folders_list = next(os.walk(opts.data_dir))[1][:opts.stack_imgs]
+        self.initFlag = 0
 
     def __len__(self):
         return len(self.data_lists) 
@@ -29,8 +30,16 @@ class lora_dataset(data.Dataset):
         for index in range(index0, index0 + len(self.data_lists)):
             try:
                 data_file_name = self.data_lists[index % len(self.data_lists)]
-
+                data_file_parts = data_file_name.split('_')
                 
+                label_per = int(data_file_parts[0].split('/')[-1])
+                label_per = torch.tensor(label_per, dtype=int).cuda()
+                ####DEBUG
+                if self.initFlag < 5:
+                    self.initFlag+=1
+                    print('==========WARNING: USING PARTIAL DATA SYMBOL%64==1 ========')
+                if not label_per%64==1: continue
+
                 if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
                     paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
                     data_perY = [self.load_img(path).cuda() for path in paths]
@@ -38,7 +47,6 @@ class lora_dataset(data.Dataset):
                     path = os.path.join(self.opts.data_dir, data_file_name)
                     data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
 
-                data_file_parts = data_file_name.split('_')
                 data_pers = []
                 for k in range(self.opts.stack_imgs):
                     if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
@@ -57,10 +65,8 @@ class lora_dataset(data.Dataset):
 
                 data_pers = torch.stack(data_pers).cuda()
 
-                label_per = int(data_file_parts[0].split('/')[-1])
-                label_per = torch.tensor(label_per, dtype=int).cuda()
 
-                return data_pers, label_per, data_perY
+                return data_pers, label_per, data_perY, data_file_name
             except ValueError as e:
                 print(e, self.data_lists[index % len(self.data_lists)])
             except OSError as e:
