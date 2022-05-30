@@ -35,10 +35,11 @@ class lora_dataset(data.Dataset):
                 label_per = int(data_file_parts[0].split('/')[-1])
                 label_per = torch.tensor(label_per, dtype=int).cuda()
                 ####DEBUG
-                if self.initFlag < 5:
-                    self.initFlag+=1
-                    print('==========WARNING: USING PARTIAL DATA SYMBOL%64==1 ========')
-                if not label_per%64==1: continue
+                if self.opts.cut_data_by >= 2:
+                    if self.initFlag < 5:
+                        self.initFlag+=1
+                        print('==========WARNING: USING PARTIAL DATA SYMBOL%',self.opts.cut_data_by,'==1 ========')
+                    if not label_per % self.opts.cut_data_by==1: continue
 
                 if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
                     paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
@@ -59,7 +60,7 @@ class lora_dataset(data.Dataset):
                         data_part0[-2] = snr
                         data_file_parts[0] = '/'.join(data_part0)
                         data_file_parts[1] = snr 
-                        data_file_parts[-1] = str(index % 100 + 1) + '.mat'
+                        data_file_parts[-1] = str((index+k) % 100 + 1) + '.mat'
                         path = os.path.join(self.opts.data_dir, '_'.join(data_file_parts))
                     data_pers.append(self.load_img(path))
 

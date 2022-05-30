@@ -24,12 +24,13 @@ def spec_to_network_input(x, opts):
     trim_size = freq_size // 2
     # up down 拼接
     y = torch.cat((x[:, -trim_size:, :], x[:, 0:trim_size, :]), 1)
-    '''
-    y2 = torch.zeros(y.shape,dtype=y.dtype)
-    for i in range(y.shape[1]):
-        for j in range(y.shape[2]):
-            y2[:,(i-j*4)%y.shape[1],j] = y[:,i,j]
-    y = y2.cuda()'''
+
+    if opts.flip_flat == 'True':
+        y2 = torch.zeros(y.shape,dtype=y.dtype)
+        for i in range(y.shape[1]):
+            for j in range(y.shape[2]):
+                y2[:,(i-j*4)%y.shape[1],j] = y[:,i,j]
+        y = y2.cuda()
 
     y_abs = torch.abs(y)
     y_abs_max = torch.tensor(
@@ -90,7 +91,10 @@ def print_opts(opts):
     ' checkpoint_dir        '+str(opts.checkpoint_dir),
     ' load_checkpoint_dir   '+str(opts.load_checkpoint_dir),
     ' load                  '+str(opts.load),
-    ' load_iters            '+str(opts.load_iters)]
+    ' load_iters            '+str(opts.load_iters),
+    ' flip_flat             '+str(opts.flip_flat),
+    ' cut_data_by           '+str(opts.cut_data_by),
+    ' terminate_acc         '+str(opts.terminate_acc)]
     print('\n'.join(strlist))
     print('=' * 80)
     return strlist

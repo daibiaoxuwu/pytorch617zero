@@ -154,7 +154,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             G_Y_loss = 0
             if opts.model_ver == 0:
                 fake_Y_spectrum = mask_CNN(torch.cat(images_X_spectrum,1))
-                for i in range(3):
+                for i in range(opts.stack_imgs):
                     g_y_pix_loss = loss_spec(fake_Y_spectrum[:,i*2:i*2+2,:,:], images_Y_spectrum[i])
                     labels_X_estimated = C_XtoY(fake_Y_spectrum[:,i*2:i*2+2,:,:])
                     g_y_class_loss = loss_class(labels_X_estimated, labels_X)
@@ -163,7 +163,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                     G_Y_loss += opts.w_image * g_y_pix_loss + g_y_class_loss 
                     _, labels_X_estimated = torch.max(labels_X_estimated, 1)
                     test_right_case = to_data(labels_X_estimated == labels_X)
-                    G_Acc += np.sum(test_right_case)/3
+                    G_Acc += np.sum(test_right_case)/opts.stack_imgs
             else: 
                 #with torch.no_grad():
                 fake_Y_spectrum = mask_CNN(images_X_spectrum) #CNN input: a list of images, output: a list of images
@@ -286,8 +286,8 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         scoreboards = [0, 0]
                     else:
                         scoreboards.append(error_matrix2)
-                    if(error_matrix2>=0.99):
-                        print('REACHED 0.99 ACC, TERMINATINg...')
+                    if(error_matrix2>=opts.terminate_acc):
+                        print('REACHED',opts.terminate_acc,'ACC, TERMINATINg...')
                         iteration = opts.init_train_iter + opts.train_iters + 1
                         break
                     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
