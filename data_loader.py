@@ -30,6 +30,7 @@ class lora_dataset(data.Dataset):
         for index in range(index0, index0 + len(self.data_lists)):
             try:
                 data_file_name = self.data_lists[index % len(self.data_lists)]
+                data_file_names = [data_file_name,]
                 data_file_parts = data_file_name.split('_')
                 
                 label_per = int(data_file_parts[0].split('/')[-1])
@@ -49,25 +50,39 @@ class lora_dataset(data.Dataset):
                     data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
 
                 data_pers = []
+                index_input = index + 1
                 for k in range(self.opts.stack_imgs):
-                    if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
-                        data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                        path = os.path.join(self.opts.data_dir, self.folders_list[k], '_'.join(data_file_parts))
-                        data_pers.append(self.load_img(path))
-                    elif self.opts.data_dir == '/data/djl/data0306/data':
-                        snr = str(self.opts.snr_list[k])
-                        data_part0 = data_file_parts[0].split('/')
-                        data_part0[-2] = snr
-                        data_file_parts[0] = '/'.join(data_part0)
-                        data_file_parts[1] = snr 
-                        data_file_parts[-1] = str((index+k) % 100 + 1) + '.mat'
-                        path = os.path.join(self.opts.data_dir, '_'.join(data_file_parts))
-                    data_pers.append(self.load_img(path))
+                    if self.opts.same_img == 'False':
+                        while index_input < index0 + len(self.data_lists):
+                            data_file_name = self.data_lists[index_input % len(self.data_lists)]
+                            data_file_parts = data_file_name.split('_')
+                            label_input = int(data_file_parts[0].split('/')[-1])
+                            if(label_input == label_per):
+                                if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
+                                    data_file_parts[1] = str(random.choice(self.opts.snr_list))
+                                    data_file_name_new = '_'.join(data_file_parts)
+                                    path = os.path.join(self.opts.data_dir, self.folders_list[k], data_file_name_new)
+                                    data_pers.append(self.load_img(path))
+                                elif self.opts.data_dir == '/data/djl/data0306/data':
+                                    snr = str(self.opts.snr_list[k])
+                                    data_part0 = data_file_parts[0].split('/')
+                                    data_part0[-2] = snr
+                                    data_file_parts[0] = '/'.join(data_part0)
+                                    data_file_parts[1] = snr 
+                                    data_file_parts[-1] = str((index_input+k) % 100 + 1) + '.mat'
+                                    data_file_name_new = '_'.join(data_file_parts)
+                                    path = os.path.join(self.opts.data_dir, data_file_name_new)
+                                    data_pers.append(self.load_img(path))
+                                data_file_names.append(data_file_name_new)
+                                break
+                            index_input += 1
+                        if index_input == index0 + len(self.data_lists): raise StopIteration
+                    else:
+                        raise NotImplementedError
 
                 data_pers = torch.stack(data_pers).cuda()
 
-
-                return data_pers, label_per, data_perY, data_file_name
+                return data_pers, label_per, data_perY, data_file_names
             except ValueError as e:
                 print(e, self.data_lists[index % len(self.data_lists)])
             except OSError as e:
@@ -105,6 +120,7 @@ def lora_loader(opts):
         files_train,files_test = pickle.load(g)
     random.shuffle(files_train)
     random.shuffle(files_test)
+    print('TRAINING DATASET S35 SAMPLES CNT:',len(files_train),'TESTING DATASET S35 SAMPLES CNT:',len(files_test))
 
     training_dataset = lora_dataset(opts, files_train)
     testing_dataset = lora_dataset(opts, files_test)

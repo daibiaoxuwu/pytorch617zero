@@ -168,7 +168,11 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                 #with torch.no_grad():
                 fake_Y_spectrum = mask_CNN(images_X_spectrum) #CNN input: a list of images, output: a list of images
                 fake_Y_spectrum = torch.mean(torch.stack(fake_Y_spectrum,0),0) #average of CNN outputs
-                g_y_pix_loss = loss_spec(fake_Y_spectrum, images_Y_spectrum[0])
+                g_y_pix_loss1 = loss_spec(fake_Y_spectrum, images_Y_spectrum[0])
+                g_y_pix_loss2 = loss_spec(torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]), torch.abs(images_Y_spectrum[0][:,0]+1j*images_Y_spectrum[0][:,1]))
+                if opts.image_loss_abs=='True': g_y_pix_loss = g_y_pix_loss1
+                elif opts.image_loss_abs=='False': g_y_pix_loss = g_y_pix_loss2
+                else: raise NotImplementedError
                 #with torch.no_grad():
                 labels_X_estimated = C_XtoY(fake_Y_spectrum)
                 g_y_class_loss = loss_class(labels_X_estimated, labels_X)

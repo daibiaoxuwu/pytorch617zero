@@ -58,6 +58,8 @@ def create_parser():
     parser.add_argument('--flip_flat', type=str, default='False')
     parser.add_argument('--cut_data_by', type=int, default=1)
     parser.add_argument('--terminate_acc', type=float, default=0.99)
+    parser.add_argument('--same_img', type=str, default='False')
+    parser.add_argument('--image_loss_abs', type=str, default='False')
     
 
     return parser
