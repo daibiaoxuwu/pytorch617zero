@@ -6,6 +6,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.utils import data
 import pickle
+import sys
 
 class lora_dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
@@ -45,9 +46,10 @@ class lora_dataset(data.Dataset):
                 if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
                     paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
                     data_perY = [self.load_img(path).cuda() for path in paths]
-                elif self.opts.data_dir == '/data/djl/data0306/data':
+                elif self.opts.data_dir == '/data/djl/data0306/data' or self.opts.data_dir == '/data/djl/SpF102':
                     path = os.path.join(self.opts.data_dir, data_file_name)
                     data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
+                else: raise NotImplementedError
 
                 data_pers = []
                 index_input = index + 1
@@ -63,13 +65,22 @@ class lora_dataset(data.Dataset):
                                     data_file_name_new = '_'.join(data_file_parts)
                                     path = os.path.join(self.opts.data_dir, self.folders_list[k], data_file_name_new)
                                     data_pers.append(self.load_img(path))
+                                elif self.opts.data_dir == '/data/djl/SpF102':
+                                    data_file_parts[1] = str(random.choice(self.opts.snr_list))
+                                    data_file_parts[7] = str(k + 1) + '.mat'
+                                    data_file_name_new = '_'.join(data_file_parts)
+                                    path = os.path.join(self.opts.data_dir, data_file_name_new)
+                                    data_pers.append(self.load_img(path))
                                 elif self.opts.data_dir == '/data/djl/data0306/data':
                                     snr = str(self.opts.snr_list[k])
                                     data_part0 = data_file_parts[0].split('/')
                                     data_part0[-2] = snr
                                     data_file_parts[0] = '/'.join(data_part0)
                                     data_file_parts[1] = snr 
-                                    data_file_parts[-1] = str((index_input+k) % 100 + 1) + '.mat'
+                                    if self.opts.random_idx == 'False':
+                                        data_file_parts[-1] = str((index_input+k) % 100 + 1) + '.mat'
+                                    else:
+                                        data_file_parts[-1] = str(random.randint(1,100)) + '.mat'
                                     data_file_name_new = '_'.join(data_file_parts)
                                     path = os.path.join(self.opts.data_dir, data_file_name_new)
                                     data_pers.append(self.load_img(path))
@@ -116,11 +127,20 @@ def lora_loader(opts):
         with open(dpath,'wb') as g: 
             pickle.dump([files_train,files_test], g)
     """
-    with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:
-        files_train,files_test = pickle.load(g)
-    random.shuffle(files_train)
-    random.shuffle(files_test)
-    print('TRAINING DATASET S35 SAMPLES CNT:',len(files_train),'TESTING DATASET S35 SAMPLES CNT:',len(files_test))
+    if opts.data_dir == '/data/djl/SpF102':
+        print('WARNING, USING ARBITARY PARTITION FOR /data/djl/SpF102 AND CHANGING opts.feature_name = chirp_new_SpF')
+        files = os.listdir(os.path.join(opts.data_dir))
+        files_train = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) < 90 and i.split('_')[7].split('.')[0] == '1', files))
+        files_test = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) >= 90 and i.split('_')[7].split('.')[0] == '1', files))
+        random.shuffle(files_train)
+        random.shuffle(files_test)
+        opts.feature_name = 'chirp_new_SpF'
+    else:
+        with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:
+            files_train,files_test = pickle.load(g)
+        random.shuffle(files_train)
+        random.shuffle(files_test)
+        print('TRAINING DATASET S35 SAMPLES CNT:',len(files_train),'TESTING DATASET S35 SAMPLES CNT:',len(files_test))
 
     training_dataset = lora_dataset(opts, files_train)
     testing_dataset = lora_dataset(opts, files_test)

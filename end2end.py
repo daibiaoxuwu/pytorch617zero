@@ -67,10 +67,10 @@ def merge_images(sources, targets, Y, test_right_case, opts):
             merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w:(j * 3 + 2) * w] = t
             merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 2) * w:(j * 3 + 3) * w] = y
             if not c:
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3) * w + 1] = np.max(merged)
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w - 1:(j * 3 + 1) * w] = np.max(merged)
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + stack_idx) * h + 1, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)
-                 merged[:, (i * opts.stack_imgs + 1 + stack_idx) * h - 1:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)
+                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3) * w + 1] = np.max(merged)*0.7
+                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w - 1:(j * 3 + 1) * w] = np.max(merged)*0.7
+                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + stack_idx) * h + 1, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.7
+                 merged[:, (i * opts.stack_imgs + 1 + stack_idx) * h - 1:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.7
     return merged.transpose(1, 2, 0)
 
 
@@ -235,6 +235,11 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
 
                             #prepare testing data
                             images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
+                            if(opts.flank>=0 and iteration2 < 5):
+                                print('======WARNING: FLANKING IMAGES TO', opts.flank, '=========')
+                            #for i in range(opts.stack_imgs):
+                            for i in range(opts.flank):
+                                images_X_test[:,i,:] = images_X_test[:,opts.flank,:]
                             images_Y_test = to_var(images_Y_test0[0])
                             images_X_test_spectrum = []
                             images_Y_test_spectrum = []
@@ -272,9 +277,8 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
 
                             if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
                                 sample_cnt+=1
-                                print(labels_X_test_estimated, labels_X_test)
-                                print(test_right_case.astype(np.int))
-                                print(data_file_name)
+                                print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
+                                #print(data_file_name)
                                 save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, opts)
                     error_matrix2 = error_matrix / error_matrix_count
                     print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
@@ -282,7 +286,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
                     with open(opts.logfile,'a') as f:
                         f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
-                    if error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00005:
+                    if error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00001:
                         opts.lr = opts.lr * 0.5
                         g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
                         print('------------INSUFFICIENT PROGRESS, DOWNGRADING LREANING RATE TO',str(opts.lr),'------------')
