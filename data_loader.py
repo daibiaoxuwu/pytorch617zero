@@ -7,6 +7,8 @@ from torch.utils.data import DataLoader
 from torch.utils import data
 import pickle
 import sys
+from utils import to_var, to_data, spec_to_network_input, create_dir
+import cv2
 
 class lora_dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
@@ -90,6 +92,30 @@ class lora_dataset(data.Dataset):
                         if index_input == index0 + len(self.data_lists): raise StopIteration
                     else:
                         raise NotImplementedError
+                ### ABOUT SPF
+                '''
+                if self.opts.data_dir == '/data/djl/SpF102' and index0<5:
+                    data_SpF_orig = torch.zeros(data_pers[0].shape[0]*self.opts.stack_imgs, dtype=torch.cfloat)
+                    print('data_pers',data_pers[0].shape)
+                    for i in range(data_pers[0].shape[0]):
+                        for j in range(self.opts.stack_imgs):
+                            data_SpF_orig[i*self.opts.stack_imgs+j] = data_pers[j][i]
+                    images_X_SpF_spectrum_raw = torch.stft(input=data_SpF_orig, n_fft=self.opts.stft_nfft,
+                                                                hop_length=self.opts.stft_overlap, win_length=self.opts.stft_window,
+                                                                pad_mode='constant').cuda()
+                    print(images_X_SpF_spectrum_raw.dtype)
+                    images_X_SpF_spectrum_raw = torch.unsqueeze(images_X_SpF_spectrum_raw,0)
+                    print(images_X_SpF_spectrum_raw.shape)
+                    images_X_SpF_spectrum = to_data(spec_to_network_input( images_X_SpF_spectrum_raw, self.opts))
+                    print('111')
+                    merged = np.abs(images_X_SpF_spectrum[:, 0, :, :]+1j*images_X_SpF_spectrum[:, 1, :, :])
+                    print(merged.shape)
+                    merged = (merged - np.min(merged)) / (np.max(merged) - np.min(merged)) * 255
+                    merged = np.squeeze(merged)
+                    merged = cv2.flip(merged, 0)
+                    print('222')
+                    cv2.imwrite('SpFOrig'+str(index0)+'.png', merged)
+                    sys.exit(1)'''
 
                 data_pers = torch.stack(data_pers).cuda()
 

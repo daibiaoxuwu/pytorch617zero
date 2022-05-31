@@ -90,7 +90,9 @@ if __name__ == "__main__":
     if opts.load == 'yes':
         if opts.load_iters == -1:
             vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir) if fname[-4:] == '.pkl']
-            if len(vals)==0: opts.load = 'no'
+            if len(vals)==0: 
+                opts.load = 'no'
+                print('--WARNING: CHECKPOINT_DIR NOT EXIST, SETTING OPTS.LOAD TO NO--')
             else: opts.load_iters = max(vals)
     if opts.load == 'yes':
         print('LOAD ITER:  ',opts.load_iters)
