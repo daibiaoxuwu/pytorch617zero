@@ -61,7 +61,6 @@ class lora_dataset(data.Dataset):
                         data_perY = [torch.zeros(data_perY_orig.shape[0]//self.opts.stack_imgs) for i in range(self.opts.stack_imgs)]
                         for i in range(data_perY[0].shape[0]):
                             for idxi, data in enumerate(data_perY): data[i] = data_perY_orig[i * self.opts.stack_imgs + idxi]
-                        print(data_perY[0].shape)
                     else: raise NotImplementedError
                 else: raise NotImplementedError
 
@@ -129,7 +128,6 @@ class lora_dataset(data.Dataset):
                                         data_pers = [torch.zeros(data_per_orig.shape[0]//self.opts.stack_imgs) for i in range(self.opts.stack_imgs)]
                                         for i in range(data_pers[0].shape[0]):
                                             for idxi, data in enumerate(data_pers): data[i] = data_per_orig[i * self.opts.stack_imgs + idxi]
-                                        print(data_pers[0].shape,'x')
 
                                     else: raise NotImplementedError
                                     data_file_names.append(data_file_name_new)

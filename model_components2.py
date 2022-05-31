@@ -196,7 +196,6 @@ class maskCNNModel2(nn.Module):
             out = out.view(out.size(0), out.size(1), -1)
             #out, _ = self.lstm(out)
             out = nn.LeakyReLU()(out)
-            print(out.shape)
             out = self.fc1(out)
             out = nn.LeakyReLU()(out)
             out = self.fc2(out)

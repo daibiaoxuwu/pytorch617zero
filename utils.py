@@ -18,13 +18,12 @@ def to_var(x):
     return Variable(x)
 
 def spec_to_network_input(x, opts):
-    print(x.shape,'XXX')
     """Converts numpy to variable."""
     freq_size = opts.freq_size
     # trim
-    trim_size = x.shape[1] // 2
+    trim_size = freq_size // 2
     # up down 拼接
-    y = torch.cat((x[:, trim_size:trim_size*2, :], x[:, 0:trim_size, :]), 1)
+    y = torch.cat((x[:, -trim_size:, :], x[:, 0:trim_size, :]), 1)
 
     if opts.flip_flat == 'True':
         y2 = torch.zeros(y.shape,dtype=y.dtype)
