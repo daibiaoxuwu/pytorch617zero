@@ -62,6 +62,7 @@ def create_parser():
     parser.add_argument('--image_loss_abs', type=str, default='False')
     parser.add_argument('--random_idx', type=str, default='True')
     parser.add_argument('--flank', type=int, default=-1)
+    parser.add_argument('--SpFD', type=str, default='False')
     
 
     return parser

@@ -138,12 +138,15 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
             images_X_spectrum = [] # training images * opts.stack_imgs
             images_Y_spectrum = [] # training images * opts.stack_imgs
             for i in range(opts.stack_imgs):
+                print(images_X.select(1,i).shape)
+                print(opts.stft_nfft,opts.stft_overlap,opts.stft_window)
                 images_X_spectrum_raw = torch.stft(input=images_X.select(1,i), n_fft=opts.stft_nfft, hop_length=opts.stft_overlap,
-                                                   win_length=opts.stft_window, pad_mode='constant');
+                                                   win_length=opts.stft_window, pad_mode='constant',return_complex=True, center=True,onesided=False);
                 images_X_spectrum.append( spec_to_network_input(images_X_spectrum_raw, opts) )
             
+                print(images_Y.shape,'Y')
                 images_Y_spectrum_raw = torch.stft(input=images_Y, n_fft=opts.stft_nfft, hop_length=opts.stft_overlap,
-                                                   win_length=opts.stft_window, pad_mode='constant');
+                                                   win_length=opts.stft_window, pad_mode='constant',return_complex=True, center=True,onesided=False);
                 images_Y_spectrum.append( spec_to_network_input(images_Y_spectrum_raw, opts) )
 
             
@@ -246,12 +249,12 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                             for i in range(opts.stack_imgs):
                                 images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
                                                                         hop_length=opts.stft_overlap, win_length=opts.stft_window,
-                                                                        pad_mode='constant');
+                                                                        pad_mode='constant',return_complex=True);
                                 images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
 
                                 images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
                                                                         hop_length=opts.stft_overlap, win_length=opts.stft_window,
-                                                                        pad_mode='constant');
+                                                                        pad_mode='constant',return_complex=True);
                                 images_Y_test_spectrum.append(spec_to_network_input(images_Y_test_spectrum_raw, opts))
 
                             # forward

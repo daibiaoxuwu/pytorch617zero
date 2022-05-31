@@ -40,9 +40,12 @@ class lora_dataset(data.Dataset):
                 label_per = torch.tensor(label_per, dtype=int).cuda()
                 ####DEBUG
                 if self.opts.cut_data_by >= 2:
-                    if self.initFlag < 5:
+                    if self.initFlag < 3:
                         self.initFlag+=1
                         print('==========WARNING: USING PARTIAL DATA SYMBOL%',self.opts.cut_data_by,'==1 ========')
+                        if self.opts.SpFD == 'True':
+                            print('==========WARNING: USING ONLY SNR_LIST[0] ========')
+                    ### CUT DATA
                     if not label_per % self.opts.cut_data_by==1: continue
 
                 if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
@@ -50,48 +53,93 @@ class lora_dataset(data.Dataset):
                     data_perY = [self.load_img(path).cuda() for path in paths]
                 elif self.opts.data_dir == '/data/djl/data0306/data' or self.opts.data_dir == '/data/djl/SpF102':
                     path = os.path.join(self.opts.data_dir, data_file_name)
-                    data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
+                    if self.opts.SpFD == 'False':
+                        data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
+                    elif self.opts.SpFD == 'True': # a single 1MHz sampling rate, split to 4 * 250KHz
+                        assert self.opts.data_dir == '/data/djl/data0306/data'
+                        data_perY_orig = self.load_img(path).cuda()
+                        data_perY = [torch.zeros(data_perY_orig.shape[0]//self.opts.stack_imgs) for i in range(self.opts.stack_imgs)]
+                        for i in range(data_perY[0].shape[0]):
+                            for idxi, data in enumerate(data_perY): data[i] = data_perY_orig[i * self.opts.stack_imgs + idxi]
+                        print(data_perY[0].shape)
+                    else: raise NotImplementedError
                 else: raise NotImplementedError
 
-                data_pers = []
-                index_input = index + 1
-                for k in range(self.opts.stack_imgs):
-                    if self.opts.same_img == 'False':
-                        while index_input < index0 + len(self.data_lists):
-                            data_file_name = self.data_lists[index_input % len(self.data_lists)]
-                            data_file_parts = data_file_name.split('_')
-                            label_input = int(data_file_parts[0].split('/')[-1])
-                            if(label_input == label_per):
-                                if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
-                                    data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                                    data_file_name_new = '_'.join(data_file_parts)
-                                    path = os.path.join(self.opts.data_dir, self.folders_list[k], data_file_name_new)
-                                    data_pers.append(self.load_img(path))
-                                elif self.opts.data_dir == '/data/djl/SpF102':
-                                    data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                                    data_file_parts[7] = str(k + 1) + '.mat'
-                                    data_file_name_new = '_'.join(data_file_parts)
-                                    path = os.path.join(self.opts.data_dir, data_file_name_new)
-                                    data_pers.append(self.load_img(path))
-                                elif self.opts.data_dir == '/data/djl/data0306/data':
-                                    snr = str(self.opts.snr_list[k])
-                                    data_part0 = data_file_parts[0].split('/')
-                                    data_part0[-2] = snr
-                                    data_file_parts[0] = '/'.join(data_part0)
-                                    data_file_parts[1] = snr 
-                                    if self.opts.random_idx == 'False':
-                                        data_file_parts[-1] = str((index_input+k) % 100 + 1) + '.mat'
-                                    else:
-                                        data_file_parts[-1] = str(random.randint(1,100)) + '.mat'
-                                    data_file_name_new = '_'.join(data_file_parts)
-                                    path = os.path.join(self.opts.data_dir, data_file_name_new)
-                                    data_pers.append(self.load_img(path))
-                                data_file_names.append(data_file_name_new)
-                                break
-                            index_input += 1
-                        if index_input == index0 + len(self.data_lists): raise StopIteration
-                    else:
-                        raise NotImplementedError
+                
+                if self.opts.SpFD == 'False':
+                    data_pers = []
+                    for k in range(self.opts.stack_imgs):
+                        if self.opts.same_img == 'False': # do not use the SNR-15 generated from the same SNR35 image as dataY
+                            index_input = index + 1
+                            while index_input < index0 + len(self.data_lists):
+                                data_file_name = self.data_lists[index_input % len(self.data_lists)]
+                                data_file_parts = data_file_name.split('_')
+                                label_input = int(data_file_parts[0].split('/')[-1])
+                                if(label_input == label_per):
+                                    if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
+                                        data_file_parts[1] = str(random.choice(self.opts.snr_list))
+                                        data_file_name_new = '_'.join(data_file_parts)
+                                        path = os.path.join(self.opts.data_dir, self.folders_list[k], data_file_name_new)
+                                        data_pers.append(self.load_img(path))
+                                    elif self.opts.data_dir == '/data/djl/SpF102':
+                                        data_file_parts[1] = str(random.choice(self.opts.snr_list))
+                                        data_file_parts[7] = str(k + 1) + '.mat'
+                                        data_file_name_new = '_'.join(data_file_parts)
+                                        path = os.path.join(self.opts.data_dir, data_file_name_new)
+                                        data_pers.append(self.load_img(path))
+                                    elif self.opts.data_dir == '/data/djl/data0306/data':
+                                        snr = str(self.opts.snr_list[k])
+                                        data_part0 = data_file_parts[0].split('/')
+                                        data_part0[-2] = snr
+                                        data_file_parts[0] = '/'.join(data_part0)
+                                        data_file_parts[1] = snr 
+                                        if self.opts.random_idx == 'False':
+                                            data_file_parts[-1] = str((index_input+k) % 100 + 1) + '.mat'
+                                        else:
+                                            data_file_parts[-1] = str(random.randint(1,100)) + '.mat'
+                                        data_file_name_new = '_'.join(data_file_parts)
+                                        path = os.path.join(self.opts.data_dir, data_file_name_new)
+                                        data_pers.append(self.load_img(path))
+                                    else: raise NotImplementedError
+                                    data_file_names.append(data_file_name_new)
+                                    break
+                                index_input += 1
+                                if index_input == index0 + len(self.data_lists): raise StopIteration
+                        else: raise NotImplementedError
+                elif self.opts.SpFD == 'True': # a single 1MHz sampling rate, split to 4 * 250KHz
+                            index_input = index + 1
+                            while index_input < index0 + len(self.data_lists):
+                                data_file_name = self.data_lists[index_input % len(self.data_lists)]
+                                data_file_parts = data_file_name.split('_')
+                                label_input = int(data_file_parts[0].split('/')[-1])
+                                if(label_input == label_per):
+                                    if self.opts.data_dir == '/data/djl/data0306/data':
+                                        snr = str(self.opts.snr_list[0]) ## USE A SINGLE SNR
+                                        data_part0 = data_file_parts[0].split('/')
+                                        data_part0[-2] = snr
+                                        data_file_parts[0] = '/'.join(data_part0)
+                                        data_file_parts[1] = snr 
+                                        if self.opts.random_idx == 'False':
+                                            data_file_parts[-1] = str((index_input) % 100 + 1) + '.mat'
+                                        else:
+                                            data_file_parts[-1] = str(random.randint(1,100)) + '.mat'
+                                        data_file_name_new = '_'.join(data_file_parts)
+                                        path = os.path.join(self.opts.data_dir, data_file_name_new)
+                                        data_per_orig = self.load_img(path)
+                                        data_pers = [torch.zeros(data_per_orig.shape[0]//self.opts.stack_imgs) for i in range(self.opts.stack_imgs)]
+                                        for i in range(data_pers[0].shape[0]):
+                                            for idxi, data in enumerate(data_pers): data[i] = data_per_orig[i * self.opts.stack_imgs + idxi]
+                                        print(data_pers[0].shape,'x')
+
+                                    else: raise NotImplementedError
+                                    data_file_names.append(data_file_name_new)
+                                    break
+                                index_input += 1
+                                if index_input == index0 + len(self.data_lists): raise StopIteration
+
+                else: raise NotImplementedError
+                    
+
                 ### ABOUT SPF
                 '''
                 if self.opts.data_dir == '/data/djl/SpF102' and index0<5:
