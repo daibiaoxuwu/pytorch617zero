@@ -130,7 +130,7 @@ class maskCNNModel2(nn.Module):
             nn.BatchNorm2d(8))
 
         #self.lstm = nn.LSTM( opts.conv_dim_lstm, opts.lstm_dim, batch_first=True, bidirectional=True)
-        self.fc1 = nn.Linear(opts.conv_dim_lstm, opts.fc1_dim)
+        self.fc1 = nn.Linear(opts.conv_dim_lstm , opts.fc1_dim)
         self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size)
         self.final = nn.BatchNorm2d(2)
 
@@ -167,7 +167,7 @@ class maskCNNModel2(nn.Module):
 
     def forward(self, xs):
         self.writeindex+=1
-        xsnew = [x.transpose(2, 3).contiguous() for x in xs]
+        xsnew = [x.transpose(2, 3) for x in xs]
         
         # CNN_1
         outs = [self.conv1(x)+self.conv1f(x) for x in xsnew]
@@ -192,8 +192,8 @@ class maskCNNModel2(nn.Module):
             outs = outs2
 
         for idx in range(len(xs)):
-            out = self.conv3(outs[idx]).transpose(1, 2).contiguous()
-            out = out.view(out.size(0), out.size(1), -1)
+            out = self.conv3(outs[idx]).transpose(1, 2)
+            out = out.reshape(out.size(0), out.size(1), -1)
             #out, _ = self.lstm(out)
             out = nn.LeakyReLU()(out)
             out = self.fc1(out)
@@ -201,7 +201,7 @@ class maskCNNModel2(nn.Module):
             out = self.fc2(out)
 
             out = out.view(out.size(0), out.size(1), 1, -1)
-            out = out.transpose(1, 2).contiguous()
-            out = out.transpose(2, 3).contiguous()
-            outs[idx] = self.final(out * xs[idx])
+            out = out.transpose(1, 2)
+            out = out.transpose(2, 3)
+            outs[idx] = self.final(out * xs[idx]).contiguous()
         return outs

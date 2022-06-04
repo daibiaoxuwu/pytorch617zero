@@ -53,7 +53,7 @@ def create_parser():
     parser.add_argument('--test_datacnt', type=int, default=5)
     parser.add_argument('--use_old_data', type=str, default='True')
     parser.add_argument('--write_new_data', type=str, default='False')
-    parser.add_argument('--model_ver', type=int, default=1)
+    parser.add_argument('--model_ver', type=int, default=2)
     parser.add_argument('--max_test_iters', type=int, default=100)
     parser.add_argument('--flip_flat', type=str, default='False')
     parser.add_argument('--cut_data_by', type=int, default=1)
@@ -63,6 +63,8 @@ def create_parser():
     parser.add_argument('--random_idx', type=str, default='True')
     parser.add_argument('--flank', type=int, default=-1)
     parser.add_argument('--SpFD', type=str, default='False')
+    parser.add_argument('--start_lr_decay', type=int, default=1000)
+    parser.add_argument('--cxtoy_each', type=str, default='True')
     
 
     return parser

@@ -24,15 +24,15 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     maskCNN = maskCNNModel(opts)
     state_dict = torch.load(maskCNN_path, map_location=lambda storage, loc: storage)
     #state_dict['conv2.1.weight']= torch.cat((state_dict['conv2.1.weight'], torch.zeros(64,258-130,5,5)),1)
-    #state_dict['conv3.1.weight']= torch.cat((state_dict['conv3.1.weight'], torch.zeros(64,258-130,5,5)),1)
+    #state_dict['fc1.weight']= torch.cat((state_dict['conv3.1.weight'], torch.zeros(64,258-130,5,5)),1)
     maskCNN.load_state_dict(state_dict, strict=False)
 
     C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel,
                                        conv_dim_out=opts.n_classes,
-                                       conv_dim_lstm=opts.conv_dim_lstm)
-    C_XtoY.load_state_dict(torch.load(
-        C_XtoY_path, map_location=lambda storage, loc: storage),
-        strict=False)
+                                       conv_dim_lstm=opts.conv_dim_lstm // opts.stack_imgs)
+    state_dict = torch.load( C_XtoY_path, map_location=lambda storage, loc: storage)
+    #state_dict['dense.weight']= state_dict['dense.weight'][:,:state_dict['dense.weight'].shape[1]//opts.stack_imgs ]
+    C_XtoY.load_state_dict(state_dict, strict=False)
     if torch.cuda.is_available():
         maskCNN.cuda()
         C_XtoY.cuda()
@@ -70,6 +70,8 @@ if __name__ == "__main__":
     opts.freq_size = opts.n_classes
     opts.checkpoint_dir += 'M'+str(opts.model_ver)
     create_dir(opts.checkpoint_dir)
+    opts.cxtoy_conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
+    if opts.SpFD =='True': opts.cxtoy_conv_dim_lstm *= opts.stack_imgs 
 
     if len(opts.snr_list)<opts.stack_imgs: opts.snr_list = [opts.snr_list[0] for i in range(opts.stack_imgs)]
     if opts.load_checkpoint_dir == '/data/djl':
@@ -100,7 +102,7 @@ if __name__ == "__main__":
         mask_CNN, C_XtoY = load_checkpoint(opts, maskCNNModel, classificationHybridModel)
     else:
         mask_CNN = maskCNNModel(opts)
-        C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.n_classes * opts.fs // opts.bw)
+        C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
         mask_CNN.cuda()
         C_XtoY.cuda()
     

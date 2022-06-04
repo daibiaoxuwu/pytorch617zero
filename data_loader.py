@@ -51,14 +51,14 @@ class lora_dataset(data.Dataset):
                 if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
                     paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
                     data_perY = [self.load_img(path).cuda() for path in paths]
-                elif self.opts.data_dir == '/data/djl/data0306/data' or self.opts.data_dir == '/data/djl/SpF102':
+                elif self.opts.data_dir == '/data/djl/data0306/data' or self.opts.data_dir == '/data/djl/SpF102' or self.opts.data_dir == '/data/djl/sf8_76800/sf7_125k4':
                     path = os.path.join(self.opts.data_dir, data_file_name)
                     if self.opts.SpFD == 'False':
                         data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
                     elif self.opts.SpFD == 'True': # a single 1MHz sampling rate, split to 4 * 250KHz
                         assert self.opts.data_dir == '/data/djl/data0306/data'
                         data_perY_orig = self.load_img(path).cuda()
-                        data_perY = [torch.zeros(data_perY_orig.shape[0]//self.opts.stack_imgs) for i in range(self.opts.stack_imgs)]
+                        data_perY = [torch.zeros(data_perY_orig.shape[0]//self.opts.stack_imgs, dtype=torch.cfloat) for i in range(self.opts.stack_imgs)]
                         for i in range(data_perY[0].shape[0]):
                             for idxi, data in enumerate(data_perY): data[i] = data_perY_orig[i * self.opts.stack_imgs + idxi]
                     else: raise NotImplementedError
@@ -80,9 +80,9 @@ class lora_dataset(data.Dataset):
                                         data_file_name_new = '_'.join(data_file_parts)
                                         path = os.path.join(self.opts.data_dir, self.folders_list[k], data_file_name_new)
                                         data_pers.append(self.load_img(path))
-                                    elif self.opts.data_dir == '/data/djl/SpF102':
+                                    elif self.opts.data_dir == '/data/djl/SpF102' or self.opts.data_dir == '/data/djl/sf8_76800/sf7_125k4':
                                         data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                                        data_file_parts[7] = str(k + 1) + '.mat'
+                                        if self.opts.data_dir == '/data/djl/SpF102': data_file_parts[7] = str(k + 1) + '.mat'
                                         data_file_name_new = '_'.join(data_file_parts)
                                         path = os.path.join(self.opts.data_dir, data_file_name_new)
                                         data_pers.append(self.load_img(path))
@@ -125,9 +125,31 @@ class lora_dataset(data.Dataset):
                                         data_file_name_new = '_'.join(data_file_parts)
                                         path = os.path.join(self.opts.data_dir, data_file_name_new)
                                         data_per_orig = self.load_img(path)
-                                        data_pers = [torch.zeros(data_per_orig.shape[0]//self.opts.stack_imgs) for i in range(self.opts.stack_imgs)]
+
+
+                                        data_pers = [torch.zeros(data_per_orig.shape[0]//self.opts.stack_imgs, dtype=torch.cfloat) for i in range(self.opts.stack_imgs)]
                                         for i in range(data_pers[0].shape[0]):
-                                            for idxi, data in enumerate(data_pers): data[i] = data_per_orig[i * self.opts.stack_imgs + idxi]
+                                            for idxi in range(self.opts.stack_imgs):
+                                                data_pers[idxi][i] = data_per_orig[i * self.opts.stack_imgs + idxi]
+
+                                        '''
+                                        images_X_SpF_spectrum_raw = torch.stft(input= data_pers[0], n_fft=self.opts.stft_nfft,
+                                                        hop_length=self.opts.stft_overlap // self.opts.stack_imgs, win_length=self.opts.stft_window // self.opts.stack_imgs,
+                                                        pad_mode='constant')
+                                        freq_size = self.opts.freq_size
+                                        # trim
+                                        trim_size = freq_size // 2
+                                        # up down 拼接
+                                        images_X_SpF_spectrum_raw = torch.cat((images_X_SpF_spectrum_raw[-trim_size:, :], images_X_SpF_spectrum_raw[0:trim_size, :]), 0)
+                                        print(images_X_SpF_spectrum_raw.shape,'images_X_SpF_spectrum_raw')
+
+                                        merged = to_data(np.abs(images_X_SpF_spectrum_raw))
+                                        merged = (merged - np.min(merged)) / (np.max(merged) - np.min(merged)) * 255
+                                        merged = np.squeeze(merged)
+                                        merged = cv2.flip(merged, 0)
+                                        cv2.imwrite('SpFData'+str(self.opts.stack_imgs)+'.png', merged)
+                                        print('SpFData')
+                                        sys.exit(1)'''
 
                                     else: raise NotImplementedError
                                     data_file_names.append(data_file_name_new)
@@ -200,19 +222,31 @@ def lora_loader(opts):
             pickle.dump([files_train,files_test], g)
     """
     if opts.data_dir == '/data/djl/SpF102':
-        print('WARNING, USING ARBITARY PARTITION FOR /data/djl/SpF102 AND CHANGING opts.feature_name = chirp_new_SpF')
+        print('WARNING, USING ARBITARY PARTITION FOR', opts.data_dir, 'AND CHANGING opts.feature_name = chirp_new_SpF')
+
         files = os.listdir(os.path.join(opts.data_dir))
         files_train = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) < 90 and i.split('_')[7].split('.')[0] == '1', files))
         files_test = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) >= 90 and i.split('_')[7].split('.')[0] == '1', files))
         random.shuffle(files_train)
         random.shuffle(files_test)
         opts.feature_name = 'chirp_new_SpF'
-    else:
+    elif opts.data_dir == '/data/djl/sf8_76800/sf7_125k4':
+        print('WARNING, USING ARBITARY PARTITION FOR', opts.data_dir, 'AND CHANGING opts.feature_name = chirp_new_SpF')
+        files = os.listdir(os.path.join(opts.data_dir))
+        files_train = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) < 18,files))
+        files_test = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) >= 18,files))
+        random.shuffle(files_train)
+        random.shuffle(files_test)
+        opts.feature_name = 'chirp_new_SpF'
+    elif opts.data_dir == '/data/djl/data0306/data':
         with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:
             files_train,files_test = pickle.load(g)
         random.shuffle(files_train)
         random.shuffle(files_test)
         print('TRAINING DATASET S35 SAMPLES CNT:',len(files_train),'TESTING DATASET S35 SAMPLES CNT:',len(files_test))
+    else:
+        print('DATA SPLIT FOR SF8_UPLOAD NOT PREPARED')
+        raise NotImplementedError
 
     training_dataset = lora_dataset(opts, files_train)
     testing_dataset = lora_dataset(opts, files_test)
