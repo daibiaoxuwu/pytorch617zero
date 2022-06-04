@@ -16,7 +16,7 @@ class lora_dataset(data.Dataset):
     def __init__(self, opts, files_list):
         self.opts = opts
         self.data_lists = files_list
-        if opts.data_dir == '/data/djl/sf7-1b-out-upload':
+        if opts.data_format == 3:
             self.folders_list = next(os.walk(opts.data_dir))[1][:opts.stack_imgs]
         self.initFlag = 0
 
@@ -48,15 +48,15 @@ class lora_dataset(data.Dataset):
                     ### CUT DATA
                     if not label_per % self.opts.cut_data_by==1: continue
 
-                if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
+                if self.opts.data_format == 3:
                     paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
                     data_perY = [self.load_img(path).cuda() for path in paths]
-                elif self.opts.data_dir == '/data/djl/data0306/data' or self.opts.data_dir == '/data/djl/SpF102' or self.opts.data_dir == '/data/djl/sf8_76800/sf7_125k4':
+                elif self.opts.data_format < 3:
                     path = os.path.join(self.opts.data_dir, data_file_name)
                     if self.opts.SpFD == 'False':
                         data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
                     elif self.opts.SpFD == 'True': # a single 1MHz sampling rate, split to 4 * 250KHz
-                        assert self.opts.data_dir == '/data/djl/data0306/data'
+                        assert self.opts.data_dir == 0
                         data_perY_orig = self.load_img(path).cuda()
                         data_perY = [torch.zeros(data_perY_orig.shape[0]//self.opts.stack_imgs, dtype=torch.cfloat) for i in range(self.opts.stack_imgs)]
                         for i in range(data_perY[0].shape[0]):
@@ -75,18 +75,18 @@ class lora_dataset(data.Dataset):
                                 data_file_parts = data_file_name.split('_')
                                 label_input = int(data_file_parts[0].split('/')[-1])
                                 if(label_input == label_per):
-                                    if self.opts.data_dir == '/data/djl/sf7-1b-out-upload':
+                                    if self.opts.data_format == 3:
                                         data_file_parts[1] = str(random.choice(self.opts.snr_list))
                                         data_file_name_new = '_'.join(data_file_parts)
                                         path = os.path.join(self.opts.data_dir, self.folders_list[k], data_file_name_new)
                                         data_pers.append(self.load_img(path))
-                                    elif self.opts.data_dir == '/data/djl/SpF102' or self.opts.data_dir == '/data/djl/sf8_76800/sf7_125k4':
+                                    elif self.opts.data_format == 1 or self.opts.data_format == 2:
                                         data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                                        if self.opts.data_dir == '/data/djl/SpF102': data_file_parts[7] = str(k + 1) + '.mat'
+                                        if self.opts.data_format == 1: data_file_parts[7] = str(k + 1) + '.mat'
                                         data_file_name_new = '_'.join(data_file_parts)
                                         path = os.path.join(self.opts.data_dir, data_file_name_new)
                                         data_pers.append(self.load_img(path))
-                                    elif self.opts.data_dir == '/data/djl/data0306/data':
+                                    elif self.opts.data_format == 0:
                                         snr = str(self.opts.snr_list[k])
                                         data_part0 = data_file_parts[0].split('/')
                                         data_part0[-2] = snr
@@ -112,7 +112,7 @@ class lora_dataset(data.Dataset):
                                 data_file_parts = data_file_name.split('_')
                                 label_input = int(data_file_parts[0].split('/')[-1])
                                 if(label_input == label_per):
-                                    if self.opts.data_dir == '/data/djl/data0306/data':
+                                    if self.opts.data_format == 0:
                                         snr = str(self.opts.snr_list[0]) ## USE A SINGLE SNR
                                         data_part0 = data_file_parts[0].split('/')
                                         data_part0[-2] = snr
@@ -221,7 +221,7 @@ def lora_loader(opts):
         with open(dpath,'wb') as g: 
             pickle.dump([files_train,files_test], g)
     """
-    if opts.data_dir == '/data/djl/SpF102':
+    if opts.data_format == 1:
         print('WARNING, USING ARBITARY PARTITION FOR', opts.data_dir, 'AND CHANGING opts.feature_name = chirp_new_SpF')
 
         files = os.listdir(os.path.join(opts.data_dir))
@@ -230,30 +230,39 @@ def lora_loader(opts):
         random.shuffle(files_train)
         random.shuffle(files_test)
         opts.feature_name = 'chirp_new_SpF'
-    elif opts.data_dir == '/data/djl/sf8_76800/sf7_125k4':
+    elif opts.data_format == 2:
         print('WARNING, USING ARBITARY PARTITION FOR', opts.data_dir, 'AND CHANGING opts.feature_name = chirp_new_SpF')
         files = os.listdir(os.path.join(opts.data_dir))
-        files_train = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) < 18,files))
-        files_test = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) >= 18,files))
+
+        templ = [int(i.split('_')[4]) for i in files]
+        split = int(max(templ)*0.8)
+        split2 = int(max(templ)*0.9)
+        files_train = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) < split,files))
+        files_val = list(filter(lambda i: i.split('_')[1] == '35' and split <= int(i.split('_')[4]) < split2,files))
+        files_test = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) >= split2,files))
         random.shuffle(files_train)
         random.shuffle(files_test)
         opts.feature_name = 'chirp_new_SpF'
-    elif opts.data_dir == '/data/djl/data0306/data':
+    elif opts.data_format == 0:
         with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:
             files_train,files_test = pickle.load(g)
         random.shuffle(files_train)
         random.shuffle(files_test)
-        print('TRAINING DATASET S35 SAMPLES CNT:',len(files_train),'TESTING DATASET S35 SAMPLES CNT:',len(files_test))
     else:
         print('DATA SPLIT FOR SF8_UPLOAD NOT PREPARED')
         raise NotImplementedError
+    print('TRAINING   DATASET S35 SAMPLES CNT:',len(files_train),'\n',
+          'VALIDATION DATASET S35 SAMPLES CNT:',len(files_val),'\n',
+          'TESTING    DATASET S35 SAMPLES CNT:',len(files_test))
 
     training_dataset = lora_dataset(opts, files_train)
+    val_dataset = lora_dataset(opts, files_val)
     testing_dataset = lora_dataset(opts, files_test)
 
     training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=True, num_workers=opts.num_workers)
+    val_dloader = DataLoader(dataset=val_dataset, batch_size=opts.batch_size, shuffle=True, num_workers=opts.num_workers)
     testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=True, num_workers=opts.num_workers)
-    return training_dloader,testing_dloader
+    return training_dloader,val_dloader,testing_dloader
 
 
 

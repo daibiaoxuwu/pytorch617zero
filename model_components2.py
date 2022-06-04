@@ -105,7 +105,8 @@ class maskCNNModel2(nn.Module):
                 nn.BatchNorm2d(64), nn.LeakyReLU(),
 
                 nn.Conv2d(64, 256, kernel_size=(1, 1), dilation=(1, 1)),
-                nn.BatchNorm2d(256)).cuda())
+                nn.BatchNorm2d(256)))
+        self.conv2 = nn.ModuleList(self.conv2)
 
 
         self.conv3 = nn.Sequential(

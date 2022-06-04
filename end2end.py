@@ -74,7 +74,7 @@ def merge_images(sources, targets, Y, test_right_case, opts):
     return merged.transpose(1, 2, 0)
 
 
-def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, test_right_case, opts):
+def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, test_right_case, name, opts):
     """Saves samples from both generators X->Y and Y->X.
     """
     if opts.model_ver == 0: fake_Y = mask_CNN(torch.cat(fixed_X,1))
@@ -86,7 +86,7 @@ def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, test_right_case, opts):
     mergeda = merge_images(fixed_X, fake_Y, Y, test_right_case, opts)
 
     path = os.path.join(opts.checkpoint_dir,
-            'sample-{:06d}{:d}-Y.png'.format(iteration,opts.snr_list[0]))
+            'sample-{:06d}{:d}-Y{:s}.png'.format(iteration,opts.snr_list[0],name))
     merged = np.abs(mergeda[:, :, 0]+1j*mergeda[:, :, 1])
     merged = (merged - np.min(merged)) / (np.max(merged) - np.min(merged)) * 255
     merged = cv2.flip(merged, 0)
@@ -95,7 +95,7 @@ def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, test_right_case, opts):
     print('SAMPLE: {}'.format(path))
 
 
-def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts):
+def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts):
     """Runs the training loop.
         * Saves checkpoint every opts.checkpoint_every iterations
     """
@@ -117,7 +117,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
     scoreboards = [0, 0,]
     while iteration < opts.init_train_iter + opts.train_iters:
         train_iter = iter(training_dataloader)
-        print('-----START NEW TRAINING EPOCH-----')
+        if iteration !=  opts.init_train_iter:  print('============WARNING: REUSING DATA, STARTING NEW TRAINING EPOCH=============')
         for images_X, labels_X, images_Y, data_file_name in train_iter:
             mask_CNN.train()
             C_XtoY.train()
@@ -243,12 +243,12 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                     #print('start testing..')
                     error_matrix = 0
                     error_matrix_count = 0
-                    test_iter = iter(testing_dataloader)
+                    val_iter = iter(val_dataloader)
                     iteration2 = 0
                     G_Image_loss_avg_test = 0
                     G_Class_loss_avg_test = 0
                     sample_cnt = 0
-                    for images_X_test, labels_X_test, images_Y_test0, data_file_name in test_iter:
+                    for images_X_test, labels_X_test, images_Y_test0, data_file_name in val_iter:
                             if iteration2 >= opts.max_test_iters: break
                             iteration2 += 1
                             labels_X_test = labels_X_test.cuda()
@@ -299,7 +299,7 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                                 sample_cnt+=1
                                 print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
                                 #print(data_file_name)
-                                save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, opts)
+                                save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'val', opts)
                     error_matrix2 = error_matrix / error_matrix_count
                     print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
                     with open(opts.logfile2,'a') as f:
@@ -319,4 +319,74 @@ def training_loop(training_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts
                         iteration = opts.init_train_iter + opts.train_iters + 1
                         break
                     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
+    print(' FINAL TEST ')
+    mask_CNN.eval()
+    C_XtoY.eval()
+    with torch.no_grad():
+        #print('start testing..')
+        error_matrix = 0
+        error_matrix_count = 0
+        test_iter = iter(testing_dataloader)
+        iteration2 = 0
+        G_Image_loss_avg_test = 0
+        G_Class_loss_avg_test = 0
+        sample_cnt = 0
+        for images_X_test, labels_X_test, images_Y_test0, data_file_name in test_iter:
+                if iteration2 >= opts.max_test_iters: break
+                iteration2 += 1
+                labels_X_test = labels_X_test.cuda()
+
+                #prepare testing data
+                images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
+                if(opts.flank>=0 and iteration2 < 5):
+                    print('======WARNING: FLANKING IMAGES TO', opts.flank, '=========')
+                #for i in range(opts.stack_imgs):
+                for i in range(opts.flank):
+                    images_X_test[:,i,:] = images_X_test[:,opts.flank,:]
+                images_Y_test = to_var(images_Y_test0[0])
+                images_X_test_spectrum = []
+                images_Y_test_spectrum = []
+                for i in range(opts.stack_imgs):
+                    images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
+                                        hop_length=opts.stft_overlap , win_length=opts.stft_window ,
+                                        pad_mode='constant',return_complex=True)
+                    images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
+
+                    images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
+                                        hop_length=opts.stft_overlap , win_length=opts.stft_window,
+                                        pad_mode='constant',return_complex=True)
+                    images_Y_test_spectrum.append(spec_to_network_input(images_Y_test_spectrum_raw, opts))
+
+                # forward
+                if opts.model_ver == 0: 
+                    fake_Y_test_spectrum = mask_CNN(torch.cat(images_X_test_spectrum, 1))
+                    labels_X_estimated = C_XtoY(fake_Y_test_spectrum[:,:2,:,:])
+                    g_y_pix_loss = loss_spec(fake_Y_test_spectrum[:,:2,:,:], images_Y_test_spectrum[0])
+                else: 
+                    fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum) #CNN input: a list of images, output: a list of images
+                    fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
+                    labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
+                    g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum[0])
+
+                g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
+                G_Image_loss_avg_test += g_y_pix_loss.item() 
+                G_Class_loss_avg_test += g_y_class_loss.item() 
+
+                _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
+                test_right_case = to_data(labels_X_test_estimated == labels_X_test)
+                error_matrix += np.sum(test_right_case)
+
+                error_matrix_count += opts.batch_size
+
+                if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
+                    sample_cnt+=1
+                    print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
+                    #print(data_file_name)
+                    save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'test', opts)
+        error_matrix2 = error_matrix / error_matrix_count
+        print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
+        with open(opts.logfile2,'a') as f:
+            f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+        with open(opts.logfile,'a') as f:
+            f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
     return mask_CNN, C_XtoY
