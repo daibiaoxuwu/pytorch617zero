@@ -64,7 +64,11 @@ def merge_images(sources, targets, Y, opts):
             merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = s
             merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w:(j * 3 + 2) * w] = t
             merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 2) * w:(j * 3 + 3) * w] = y
-    return merged.transpose(1, 2, 0)
+    merged = merged.transpose(1, 2, 0)
+    print(merged.shape)
+    newsize = ( merged.shape[1] ,merged.shape[1] * opts.stack_imgs )
+    print(newsize)
+    return cv2.resize(merged, dsize=newsize)
 
 
 def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, name, opts):
