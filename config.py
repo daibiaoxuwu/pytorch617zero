@@ -54,7 +54,7 @@ def create_parser():
     parser.add_argument('--use_old_data', type=str, default='True')
     parser.add_argument('--write_new_data', type=str, default='False')
     parser.add_argument('--model_ver', type=int, default=2)
-    parser.add_argument('--max_test_iters', type=int, default=100)
+    #parser.add_argument('--max_test_iters', type=int, default=100)
     parser.add_argument('--flip_flat', type=str, default='False')
     parser.add_argument('--cut_data_by', type=int, default=1)
     parser.add_argument('--terminate_acc', type=float, default=0.99)

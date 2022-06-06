@@ -10,7 +10,8 @@ import random
 import torch
 import torch.nn as nn
 import sys
-from model_components0 import maskCNNModel0, classificationHybridModel0
+#from model_components0 import maskCNNModel0, classificationHybridModel0
+from model_components00 import maskCNNModel0, classificationHybridModel0
 from model_components1 import maskCNNModel1, classificationHybridModel1
 from model_components2 import maskCNNModel2, classificationHybridModel2
 from utils import *
@@ -78,17 +79,16 @@ if __name__ == "__main__":
         opts.load_checkpoint_dir = opts.checkpoint_dir
     if opts.data_dir == '/data/djl/data0306/data': opts.data_format = 0
     elif opts.data_dir == '/data/djl/SpF102': opts.data_format = 1
-    elif opts.data_dir == '/data/djl/sf8_76800/sf7_125k4' or opts.data_dir == '/data/djl/sf9_76800/sf9_125k': opts.data_format = 2
+    elif opts.data_dir == '/data/djl/sf8_76800' or opts.data_dir == '/data/djl/sf9_76800' or '_125k_new' in opts.data_dir: opts.data_format = 2
     elif opts.data_dir == '/data/djl/sf7-1b-out-upload': opts.data_format = 3
-    
     else: raise NotImplementedError
     
 
     
     ##load model checkpoint
     if opts.model_ver == 0:
-        maskCNNModel = maskCNNModel0
-        classificationHybridModel = classificationHybridModel0
+        maskCNNModel = maskCNNModel00
+        classificationHybridModel = classificationHybridModel00
     elif opts.model_ver == 1:
         maskCNNModel = maskCNNModel1
         classificationHybridModel = classificationHybridModel1

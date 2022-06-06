@@ -234,20 +234,46 @@ def lora_loader(opts):
         print('WARNING, USING ARBITARY PARTITION FOR', opts.data_dir, 'AND CHANGING opts.feature_name = chirp_new_SpF')
         files = os.listdir(os.path.join(opts.data_dir))
 
-        templ = [int(i.split('_')[4]) for i in files]
-        split = int(max(templ)*0.8)
-        split2 = int(max(templ)*0.9)
-        files_train = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) < split,files))
-        files_val = list(filter(lambda i: i.split('_')[1] == '35' and split <= int(i.split('_')[4]) < split2,files))
-        files_test = list(filter(lambda i: i.split('_')[1] == '35' and int(i.split('_')[4]) >= split2,files))
+        snr_all = set( [int(i.split('_')[1]) for i in files])
+        print('ALL SNR IN DATASET:',snr_all)
+        files_all = set(filter(lambda i: i.split('_')[1] == '35',files))
+        files_set = set(files)
+        for snr in snr_all:
+            if snr==35:continue
+            files_failed = set()
+            for filename in files_all:
+                filename_parts = filename.split('_')
+                filename_parts[1] = str(snr)
+                filename_new = '_'.join(filename_parts)
+                if filename_new not in files_set: files_failed.add(filename)
+            files_all -= files_failed
+                
+        templ = list(set([int(i.split('_')[4]) for i in files]))
+        #templ.sort()
+        #for k in templ: print(k,len(set(filter(lambda i: int(i.split('_')[4]) == k,files))))
+        for i in opts.snr_list: 
+            if i not in snr_all: 
+                print('SNR LIST FAILURE',opts.snr_list, i, snr_all)
+                sys.exit(1)
+        print(templ)
+        split = int(max(templ)*0.94)
+        split2 = int(max(templ)*0.96)
+        files_train = list(filter(lambda i: int(i.split('_')[4]) < split,files_all))
+        files_val = list(filter(lambda i: split <= int(i.split('_')[4]) < split2,files_all))
+        files_test = list(filter(lambda i: int(i.split('_')[4]) >= split2,files_all))
         random.shuffle(files_train)
         random.shuffle(files_test)
         opts.feature_name = 'chirp_new_SpF'
     elif opts.data_format == 0:
         with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:
-            files_train,files_test = pickle.load(g)
+            files_train,files_test_all = pickle.load(g)
         random.shuffle(files_train)
+        files_val = files_test_all[:int(len(files_test_all)/2)]
+        files_test = files_test_all[int(len(files_test_all)/2):]
+        random.shuffle(files_val)
         random.shuffle(files_test)
+        files_val = files_val[:1600]
+        files_test = files_test[:1600]
     else:
         print('DATA SPLIT FOR SF8_UPLOAD NOT PREPARED')
         raise NotImplementedError
