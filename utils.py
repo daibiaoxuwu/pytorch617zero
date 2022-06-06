@@ -92,9 +92,11 @@ def print_opts(opts):
     ' load_checkpoint_dir   '+str(opts.load_checkpoint_dir),
     ' load                  '+str(opts.load),
     ' load_iters            '+str(opts.load_iters),
-    ' flip_flat             '+str(opts.flip_flat),
-    ' cut_data_by           '+str(opts.cut_data_by),
-    ' terminate_acc         '+str(opts.terminate_acc)]
+    #' flip_flat             '+str(opts.flip_flat),
+    #' cut_data_by           '+str(opts.cut_data_by),
+    #' terminate_acc         '+str(opts.terminate_acc)
+    ' model_ver              '+str(opts.model_ver),
+    ]
     print('\n'.join(strlist))
     print('=' * 80)
     return strlist

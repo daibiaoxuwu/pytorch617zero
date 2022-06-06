@@ -14,6 +14,7 @@ import sys
 from model_components00 import maskCNNModel0, classificationHybridModel0
 from model_components1 import maskCNNModel1, classificationHybridModel1
 from model_components2 import maskCNNModel2, classificationHybridModel2
+from model_components3 import maskCNNModel3, classificationHybridModel3
 from utils import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -95,6 +96,9 @@ if __name__ == "__main__":
     elif opts.model_ver == 2:
         maskCNNModel = maskCNNModel2
         classificationHybridModel = classificationHybridModel2
+    elif opts.model_ver == 3:
+        maskCNNModel = maskCNNModel3
+        classificationHybridModel = classificationHybridModel3
     else: raise ValueError('Unknown Model Version')
 
     if opts.load == 'yes':

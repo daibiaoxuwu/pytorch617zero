@@ -51,7 +51,16 @@ class lora_dataset(data.Dataset):
                 if self.opts.data_format == 3:
                     paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
                     data_perY = [self.load_img(path).cuda() for path in paths]
-                elif self.opts.data_format < 3:
+                elif self.opts.data_format == 2: #DEBUG!!! LOAD -15 INSTEAD OF 35 FOR FORMAT==2
+                    data_file_parts[1] = '35'
+                    data_file_parts[4] = '0'
+                    data_file_parts[6] = '1'
+                    data_file_parts[7] = '1.mat'
+                    data_file_name_new = '_'.join(data_file_parts)
+                    path = os.path.join(self.opts.data_dir, data_file_name_new)
+                    data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
+
+                elif self.opts.data_format < 2:
                     path = os.path.join(self.opts.data_dir, data_file_name)
                     if self.opts.SpFD == 'False':
                         data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
@@ -190,8 +199,10 @@ class lora_dataset(data.Dataset):
                 return data_pers, label_per, data_perY, data_file_names
             except ValueError as e:
                 print(e, self.data_lists[index % len(self.data_lists)])
+                raise e
             except OSError as e:
                 print(e, self.data_lists[index % len(self.data_lists)])
+                raise e
 
         raise StopIteration 
 
@@ -236,10 +247,15 @@ def lora_loader(opts):
 
         snr_all = set( [int(i.split('_')[1]) for i in files])
         print('ALL SNR IN DATASET:',snr_all)
-        files_all = set(filter(lambda i: i.split('_')[1] == '35',files))
+        main_snr = opts.snr_list[0]
+        files_35 = list(filter(lambda i: i.split('_')[1] == str(35) ,files))
+        vals_35 = set([i.split('_')[0] for i in files_35])
+        print('VAL COUNT', len(vals_35))
+        files_all = set(filter(lambda i: i.split('_')[1] == str(main_snr) and i.split('_')[0] in vals_35 ,files))
         files_set = set(files)
         for snr in snr_all:
             if snr==35:continue
+            if snr==main_snr:continue
             files_failed = set()
             for filename in files_all:
                 filename_parts = filename.split('_')
@@ -257,11 +273,15 @@ def lora_loader(opts):
                 sys.exit(1)
         print(templ)
         split = int(max(templ)*0.94)
-        split2 = int(max(templ)*0.96)
+        #split2 = int(max(templ)*0.96)
         files_train = list(filter(lambda i: int(i.split('_')[4]) < split,files_all))
-        files_val = list(filter(lambda i: split <= int(i.split('_')[4]) < split2,files_all))
-        files_test = list(filter(lambda i: int(i.split('_')[4]) >= split2,files_all))
+        #files_val = list(filter(lambda i: split <= int(i.split('_')[4]) < split2,files_all))
+        #files_test = list(filter(lambda i: int(i.split('_')[4]) >= split2,files_all))
+        files_test_all = list(filter(lambda i: split <= int(i.split('_')[4]),files_all))
+        files_val = files_test_all[:int(len(files_test_all)/2)]
+        files_test = files_test_all[int(len(files_test_all)/2):]
         random.shuffle(files_train)
+        random.shuffle(files_val)
         random.shuffle(files_test)
         opts.feature_name = 'chirp_new_SpF'
     elif opts.data_format == 0:
