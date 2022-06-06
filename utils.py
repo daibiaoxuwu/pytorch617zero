@@ -96,6 +96,7 @@ def print_opts(opts):
     #' cut_data_by           '+str(opts.cut_data_by),
     #' terminate_acc         '+str(opts.terminate_acc)
     ' model_ver              '+str(opts.model_ver),
+    ' dechirp                '+str(opts.dechirp),
     ]
     print('\n'.join(strlist))
     print('=' * 80)

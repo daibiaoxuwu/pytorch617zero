@@ -24,6 +24,7 @@ from utils import to_var, to_data, spec_to_network_input, create_dir
 import torch.autograd.profiler as profiler
 import time
 import math
+import scipy.io as scio
 SEED = 11
 
 # Set the random seed manually for reproducibility.
@@ -68,7 +69,8 @@ def merge_images(sources, targets, Y, opts):
     print(merged.shape)
     newsize = ( merged.shape[1] ,merged.shape[1] * opts.stack_imgs )
     print(newsize)
-    return cv2.resize(merged, dsize=newsize)
+    #return cv2.resize(merged, dsize=newsize)
+    return merged
 
 
 def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, name, opts):
@@ -93,11 +95,32 @@ def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, name, opts):
 
 
 def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_CNN, opts):
+
     """Runs the training loop.
         * Saves checkpoint every opts.checkpoint_every iterations
     """
     loss_spec = torch.nn.MSELoss(reduction='mean')
     loss_class = nn.CrossEntropyLoss()
+
+
+    # load downchirp
+
+    if opts.dechirp == 'True':
+        assert opts.data_format == 2
+        fname = '0_35_'+str(opts.sf)+'_'+str(opts.bw)+'_0_0_1_1.mat'
+        path = os.path.join(opts.data_dir,fname)
+        print('LOADING DECHIRP FROM',path)
+        lora_img = np.array(scio.loadmat(path)[opts.feature_name].tolist())
+        lora_img = np.squeeze(lora_img)
+        lora_img = lora_img[::-1].copy()
+
+        downchirp1 = torch.tensor(lora_img, dtype=torch.cfloat).cuda()
+        downchirp0 = torch.conj(downchirp1).clone()
+        downchirp = torch.stack([ downchirp0 for i in range(opts.stack_imgs)])
+        downchirp = torch.stack([ downchirp for i in range(opts.batch_size)])
+        downchirpY = torch.stack([ downchirp0 for i in range(opts.batch_size)])
+
+
     
     # Create generators and discriminators
     g_params = list(mask_CNN.parameters())
@@ -134,6 +157,8 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
                 # ============================================
                 images_X_spectrum = [] # training images * opts.stack_imgs
                 images_Y_spectrum = [] # training images * opts.stack_imgs
+                if opts.dechirp == 'True': images_X = images_X * downchirp
+                if opts.dechirp == 'True': images_Y = images_Y * downchirpY
                 for i in range(opts.stack_imgs):
                     images_X_spectrum_raw = torch.stft(input=images_X.select(1,i), n_fft=opts.stft_nfft, 
                                                         hop_length=opts.stft_overlap , win_length=opts.stft_window ,
@@ -251,6 +276,8 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
                                 images_Y_test = to_var(images_Y_test0[0])
                                 images_X_test_spectrum = []
                                 images_Y_test_spectrum = []
+                                if opts.dechirp == 'True': images_X_test = images_X_test* downchirp
+                                if opts.dechirp == 'True': images_Y_test = images_Y_test * downchirpY
                                 for i in range(opts.stack_imgs):
                                     images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
                                                         hop_length=opts.stft_overlap , win_length=opts.stft_window ,
@@ -277,7 +304,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
 
                                 if(sample_cnt==0):
                                     sample_cnt+=1
-                                    #print(data_file_name)
+                                    print(data_file_name)
                                     save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, 'val', opts)
                         error_matrix2 = 0
                         print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
