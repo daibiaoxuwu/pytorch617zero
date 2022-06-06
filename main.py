@@ -19,7 +19,7 @@ from utils import *
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-def load_checkpoint(opts, maskCNNModel):
+def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     maskCNN_path = os.path.join(opts.load_checkpoint_dir, str(opts.load_iters) + '_maskCNN.pkl')
     C_XtoY_path = os.path.join(opts.load_checkpoint_dir, str(opts.load_iters) + '_C_XtoY.pkl')
     print('LOAD MODEL:', maskCNN_path)
@@ -31,10 +31,16 @@ def load_checkpoint(opts, maskCNNModel):
     #state_dict['fc1.weight']= torch.cat((state_dict['conv3.1.weight'], torch.zeros(64,258-130,5,5)),1)
     maskCNN.load_state_dict(state_dict)#, strict=False)
 
-    return maskCNN
+    C_XtoY = classificationHybridModel(opts)#conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.cxtoy_conv_dim_lstm)
+    if False:# os.path.exists(C_XtoY_path):
+        state_dict = torch.load( C_XtoY_path, map_location=lambda storage, loc: storage)
+        for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
+        #state_dict['dense.weight']= state_dict['dense.weight'][:,:state_dict['dense.weight'].shape[1]//opts.stack_imgs ]
+        C_XtoY.load_state_dict(state_dict)#, strict=False)
+    return maskCNN, C_XtoY
 
 
-def main(opts,mask_CNN ):
+def main(opts,mask_CNN, C_XtoY):
     torch.cuda.empty_cache()
 
     # Create train and test dataloaders for images from the two domains X and Y
@@ -45,8 +51,8 @@ def main(opts,mask_CNN ):
     set_gpu(opts.free_gpu_id)
 
     # start training
-    mask_CNN = end2end.training_loop(training_dataloader,val_dataloader, testing_dataloader,mask_CNN, opts)
-    return mask_CNN
+    mask_CNN, C_XtoY = end2end.training_loop(training_dataloader,val_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts)
+    return mask_CNN, C_XtoY
 
 if __name__ == "__main__":
     print('=' * 80)
@@ -82,12 +88,16 @@ if __name__ == "__main__":
     ##load model checkpoint
     if opts.model_ver == 0:
         maskCNNModel = maskCNNModel00
+        classificationHybridModel = classificationHybridModel00
     elif opts.model_ver == 1:
         maskCNNModel = maskCNNModel1
+        classificationHybridModel = classificationHybridModel1
     elif opts.model_ver == 2:
         maskCNNModel = maskCNNModel2
+        classificationHybridModel = classificationHybridModel2
     elif opts.model_ver == 3:
         maskCNNModel = maskCNNModel3
+        classificationHybridModel = classificationHybridModel3
     else: raise ValueError('Unknown Model Version')
 
     if opts.load == 'yes':
@@ -99,11 +109,16 @@ if __name__ == "__main__":
             else: opts.load_iters = max(vals)
     if opts.load == 'yes':
         print('LOAD ITER:  ',opts.load_iters)
-        mask_CNN = load_checkpoint(opts, maskCNNModel)
+        mask_CNN, C_XtoY = load_checkpoint(opts, maskCNNModel, classificationHybridModel)
     else:
         mask_CNN = maskCNNModel(opts)
+        #C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
+        C_XtoY = classificationHybridModel(opts)#conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
     mask_CNN = nn.DataParallel(mask_CNN)
+    C_XtoY = nn.DataParallel(C_XtoY)
+
     mask_CNN.cuda()
+    C_XtoY.cuda()
     
     #Loads the data, creates checkpoint and sample directories, and starts the training loop.
 
@@ -114,6 +129,6 @@ if __name__ == "__main__":
     with open(opts.logfile,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'\n'.join(strlist)+'\n')
     with open(opts.logfile2,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'\n'.join(strlist)+'\n')
     opts.init_train_iter = opts.load_iters
-    mask_CNN = main(opts,mask_CNN )
+    mask_CNN, C_XtoY = main(opts,mask_CNN, C_XtoY)
     opts.init_train_iter += opts.train_iters
 

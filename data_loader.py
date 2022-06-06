@@ -270,6 +270,7 @@ def lora_loader(opts):
         templ = list(set([int(i.split('_')[4]) for i in files]))
         #templ.sort()
         #for k in templ: print(k,len(set(filter(lambda i: int(i.split('_')[4]) == k,files))))
+        #for k in templ: print(k,main_snr,len(set(filter(lambda i: int(i.split('_')[4]) == k and int(i.split('_')[1]) == main_snr,files))))
         for i in opts.snr_list: 
             if i not in snr_all: 
                 print('SNR LIST FAILURE',opts.snr_list, i, snr_all)
@@ -280,10 +281,10 @@ def lora_loader(opts):
         files_test = list(files_all)
         files_val = list(files_all)
 
-        #split2 = int(max(templ)*0.96)
-        #files_train = list(filter(lambda i: int(i.split('_')[4]) < split,files_all))
-        #files_val = list(filter(lambda i: split <= int(i.split('_')[4]) < split2,files_all))
-        #files_test = list(filter(lambda i: int(i.split('_')[4]) >= split2,files_all))
+        #files_train = list(filter(lambda i: int(i.split('_')[4]) < split - 2 * opts.stack_imgs,files_all))
+        #files_val = list(filter(lambda i: split - 2 * opts.stack_imgs <=  int(i.split('_')[4]) < split - opts.stack_imgs,files_all))
+        #files_test = list(filter(lambda i: int(i.split('_')[4]) >= split - opts.stack_imgs,files_all))
+        
         #files_test = list(filter(lambda i: split <= int(i.split('_')[4]),files_all))
         #files_val = files_test[:]
         #files_val = files_test_all[:int(len(files_test_all)/2)]
@@ -306,8 +307,6 @@ def lora_loader(opts):
         files_test = files_test_all[int(len(files_test_all)/2):]
         random.shuffle(files_val)
         random.shuffle(files_test)
-        files_val = files_val[:1600]
-        files_test = files_test[:1600]
     else:
         print('DATA SPLIT FOR SF8_UPLOAD NOT PREPARED')
         raise NotImplementedError

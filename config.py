@@ -17,7 +17,7 @@ def create_parser():
     parser.add_argument('--y_image_channel', type=int, default=2)
     parser.add_argument('--conv_kernel_size', type=int, default=3)
     parser.add_argument('--conv_padding_size', type=int, default=1)
-    parser.add_argument('--lstm_dim', type=int, default=400)  # For mask_CNN model
+    parser.add_argument('--lstm_dim', type=int, default=50)  # For mask_CNN model
     parser.add_argument('--fc1_dim', type=int, default=600)  # For mask_CNN model
     parser.add_argument('--sf', type=int, default=7, help='The spreading factor.')
     parser.add_argument('--bw', type=int, default=125000, help='The bandwidth.')
