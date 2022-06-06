@@ -79,11 +79,11 @@ class lora_dataset(data.Dataset):
                     for k in range(self.opts.stack_imgs):
                         if self.opts.same_img == 'False': # do not use the SNR-15 generated from the same SNR35 image as dataY
                             index_input = index + 1
-                            while index_input < index0 + len(self.data_lists):
+                            while index_input < index + len(self.data_lists):
                                 data_file_name = self.data_lists[index_input % len(self.data_lists)]
                                 data_file_parts = data_file_name.split('_')
                                 label_input = int(data_file_parts[0].split('/')[-1])
-                                if(label_input == label_per):
+                                if(label_input == label_per.item()  ):
                                     if self.opts.data_format == 3:
                                         data_file_parts[1] = str(random.choice(self.opts.snr_list))
                                         data_file_name_new = '_'.join(data_file_parts)
@@ -111,12 +111,14 @@ class lora_dataset(data.Dataset):
                                     else: raise NotImplementedError
                                     data_file_names.append(data_file_name_new)
                                     break
-                                index_input += 1
-                                if index_input == index0 + len(self.data_lists): raise StopIteration
+                                else:
+                                    #print(index_input, data_file_name, label_per.item())
+                                    index_input += 1
+                            if index_input == index0 + len(self.data_lists): raise StopIteration
                         else: raise NotImplementedError
                 elif self.opts.SpFD == 'True': # a single 1MHz sampling rate, split to 4 * 250KHz
                             index_input = index + 1
-                            while index_input < index0 + len(self.data_lists):
+                            while index_input < index + len(self.data_lists):
                                 data_file_name = self.data_lists[index_input % len(self.data_lists)]
                                 data_file_parts = data_file_name.split('_')
                                 label_input = int(data_file_parts[0].split('/')[-1])
@@ -256,6 +258,7 @@ def lora_loader(opts):
         for snr in snr_all:
             if snr==35:continue
             if snr==main_snr:continue
+            if snr not in opts.snr_list: continue
             files_failed = set()
             for filename in files_all:
                 filename_parts = filename.split('_')
@@ -272,17 +275,28 @@ def lora_loader(opts):
                 print('SNR LIST FAILURE',opts.snr_list, i, snr_all)
                 sys.exit(1)
         print(templ)
-        split = int(max(templ)*0.94)
+        split = int(max(templ))
+        files_train = list(files_all)
+        files_test = list(files_all)
+        files_val = list(files_all)
+
         #split2 = int(max(templ)*0.96)
-        files_train = list(filter(lambda i: int(i.split('_')[4]) < split,files_all))
+        #files_train = list(filter(lambda i: int(i.split('_')[4]) < split,files_all))
         #files_val = list(filter(lambda i: split <= int(i.split('_')[4]) < split2,files_all))
         #files_test = list(filter(lambda i: int(i.split('_')[4]) >= split2,files_all))
-        files_test_all = list(filter(lambda i: split <= int(i.split('_')[4]),files_all))
-        files_val = files_test_all[:int(len(files_test_all)/2)]
-        files_test = files_test_all[int(len(files_test_all)/2):]
+        #files_test = list(filter(lambda i: split <= int(i.split('_')[4]),files_all))
+        #files_val = files_test[:]
+        #files_val = files_test_all[:int(len(files_test_all)/2)]
+        #files_test = files_test_all[int(len(files_test_all)/2):]
         random.shuffle(files_train)
         random.shuffle(files_val)
         random.shuffle(files_test)
+        templ = list(set([int(i.split('_')[0]) for i in files_val]))
+        templ.sort()
+        print(len(templ),'1111')
+
+
+        print(files_val[0])
         opts.feature_name = 'chirp_new_SpF'
     elif opts.data_format == 0:
         with open(os.path.join(opts.data_dir, 'cache','train_test_split.pkl'),'rb') as g:

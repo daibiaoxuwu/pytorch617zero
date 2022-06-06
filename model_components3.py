@@ -56,24 +56,11 @@ class maskCNNModel3(nn.Module):
 
         self.conv1 = nn.Sequential(
             # cnn1
-            nn.ZeroPad2d((3, 3, 0, 0)),
-            nn.Conv2d(opts.x_image_channel, 64, kernel_size=(1, 7), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.LeakyReLU(),
+            nn.ZeroPad2d(2),
+            nn.Conv2d(opts.x_image_channel, 256, kernel_size=(5, 5), dilation=(1, 1)),
+            nn.BatchNorm2d(256), nn.LeakyReLU(),
 
-            # cnn2
-            nn.ZeroPad2d((0, 0, 3, 3)),
-            nn.Conv2d(64, 64, kernel_size=(7, 1), dilation=(1, 1)),
-            nn.BatchNorm2d(64), nn.LeakyReLU(),
-
-            nn.ZeroPad2d(1),
-            nn.Conv2d(64, 256, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(256),
             )
-
-        self.conv1f = nn.Sequential(
-            nn.ZeroPad2d(1),
-            nn.Conv2d(2, 256, kernel_size=(3, 3), dilation=(1, 1)),
-            nn.BatchNorm2d(256))
 
         self.conv2 = []
         for i in range(2):
@@ -102,11 +89,6 @@ class maskCNNModel3(nn.Module):
             # cnn4
             nn.ZeroPad2d((2, 2, 4, 4)),
             nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(2, 1)),
-            nn.BatchNorm2d(64), nn.LeakyReLU(),
-
-            # cnn5
-            nn.ZeroPad2d((2, 2, 8, 8)),
-            nn.Conv2d(64, 64, kernel_size=(5, 5), dilation=(4, 1)),
             nn.BatchNorm2d(64), nn.LeakyReLU(),
 
             # cnn8
@@ -154,7 +136,7 @@ class maskCNNModel3(nn.Module):
         xsnew = [x.transpose(2, 3) for x in xs]
         
         # CNN_1
-        outs = [self.conv1(x)+self.conv1f(x) for x in xsnew]
+        outs = [self.conv1(x) for x in xsnew]
 
 
         for i in range(2):
