@@ -115,6 +115,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
         assert opts.data_format == 2
         fname = '0_35_'+str(opts.sf)+'_'+str(opts.bw)+'_0_0_1_1.mat'
         path = os.path.join(opts.data_dir,fname)
+        path = path.replace('test','new')
         print('LOADING DECHIRP FROM',path)
         lora_img = np.array(scio.loadmat(path)[opts.feature_name].tolist())
         lora_img = np.squeeze(lora_img)
@@ -277,7 +278,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
                     G_Class_loss_avg_test = 0
                     sample_cnt = 0
                     for images_X_test, labels_X_test, images_Y_test0, data_file_name in val_iter:
-                            if iteration2 >= 20: break
+                            if iteration2 >= 100: break
                             iteration2 += 1
                             labels_X_test = labels_X_test.cuda()
 

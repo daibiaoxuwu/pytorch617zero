@@ -67,6 +67,7 @@ def create_parser():
     parser.add_argument('--cxtoy_each', type=str, default='True')
     parser.add_argument('--dechirp', type=str, default='False')
     parser.add_argument('--line', type=str, default='False')
+    parser.add_argument('--out_channel', type=int, default=1)
     
 
     return parser

@@ -28,7 +28,8 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     state_dict = torch.load(maskCNN_path, map_location=lambda storage, loc: storage)
     for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
     #state_dict['conv2.1.weight']= torch.cat((state_dict['conv2.1.weight'], torch.zeros(64,258-130,5,5)),1)
-    #state_dict['fc1.weight']= torch.cat((state_dict['conv3.1.weight'], torch.zeros(64,258-130,5,5)),1)
+    #state_dict.pop('fc2.weight')
+    #state_dict.pop('fc2.bias')
     maskCNN.load_state_dict(state_dict)#, strict=False)
 
     C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.cxtoy_conv_dim_lstm)
@@ -79,7 +80,7 @@ if __name__ == "__main__":
         opts.load_checkpoint_dir = opts.checkpoint_dir
     if opts.data_dir == '/data/djl/data0306/data': opts.data_format = 0
     elif opts.data_dir == '/data/djl/SpF102': opts.data_format = 1
-    elif opts.data_dir == '/data/djl/sf8_76800' or opts.data_dir == '/data/djl/sf9_76800' or '_125k_new' in opts.data_dir: opts.data_format = 2
+    elif opts.data_dir == '/data/djl/sf8_76800' or opts.data_dir == '/data/djl/sf9_76800' or '_125k_new' in opts.data_dir or '_125k_test' in opts.data_dir: opts.data_format = 2
     elif opts.data_dir == '/data/djl/sf7-1b-out-upload': opts.data_format = 3
     else: raise NotImplementedError
     

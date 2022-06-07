@@ -103,7 +103,7 @@ class maskCNNModel3(nn.Module):
 
         #self.lstm = nn.LSTM( opts.conv_dim_lstm, opts.lstm_dim, batch_first=True, bidirectional=True)
         self.fc1 = nn.Linear(opts.conv_dim_lstm , opts.fc1_dim)
-        self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size)
+        self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.out_channel)
         self.final = nn.BatchNorm2d(2)
 
     def merge_images(self, sources, opts):
@@ -172,8 +172,11 @@ class maskCNNModel3(nn.Module):
             out = nn.LeakyReLU()(out)
             out = self.fc2(out)
 
-            out = out.view(out.size(0), out.size(1), 1, -1)
+            out = out.view(out.size(0), out.size(1), self.opts.out_channel, -1)
             out = out.transpose(1, 2)
             out = out.transpose(2, 3)
-            outs[idx] = self.final(out * xs[idx]).contiguous()
+            if self.opts.out_channel == 1:
+                outs[idx] = self.final(out * xs[idx]).contiguous()
+            elif self.opts.out_channel == 2:
+                outs[idx] = self.final(out).contiguous()
         return outs
