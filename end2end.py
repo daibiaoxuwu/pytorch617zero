@@ -20,7 +20,7 @@ import scipy.io
 
 import cv2
 # Local imports
-from utils import to_var, to_data, spec_to_network_input, create_dir
+from utils import *
 import torch.autograd.profiler as profiler
 import time
 import math
@@ -141,80 +141,67 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
     oldtime = time.time()#time the training process
 
     scoreboards = [0, 0,]
-    try:
-        while iteration < opts.init_train_iter + opts.train_iters:
-            train_iter = iter(training_dataloader)
-            if iteration !=  opts.init_train_iter:  print('============WARNING: REUSING DATA, STARTING NEW TRAINING EPOCH=============')
-            for images_X, labels_X, images_Y, data_file_name in train_iter:
-                mask_CNN.train()
-                C_XtoY.train()
-                labels_X = labels_X.cuda()
-                if iteration>opts.init_train_iter+opts.train_iters:break
-                iteration+=1
-                if iteration == 20000 or iteration == 40000: 
-                    opts.w_image /= 2
-                    print('w_image',str(opts.w_image))
-                    with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'w_image changed: '+str(opts.w_image))
+    while iteration < opts.init_train_iter + opts.train_iters:
+        train_iter = iter(training_dataloader)
+        if iteration !=  opts.init_train_iter:  print('============WARNING: REUSING DATA, STARTING NEW TRAINING EPOCH=============')
+        for images_X, labels_X, images_Y, data_file_name in train_iter:
+            mask_CNN.train()
+            C_XtoY.train()
+            labels_X = labels_X.cuda()
+            if iteration>opts.init_train_iter+opts.train_iters:break
+            iteration+=1
+            if iteration == 20000 or iteration == 40000: 
+                opts.w_image /= 2
+                print('w_image',str(opts.w_image))
+                with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'w_image changed: '+str(opts.w_image))
 
-                images_X = to_var(images_X)
-                images_Y = to_var(torch.tensor(images_Y[0], dtype=torch.cfloat))
+            images_X = to_var(images_X)
+            images_Y = to_var(torch.tensor(images_Y[0], dtype=torch.cfloat))
 
-                # ============================================
-                #            GENERATE TRAIING IMAGES
-                # ============================================
-                images_X_spectrum = [] # training images * opts.stack_imgs
-                images_Y_spectrum = [] # training images * opts.stack_imgs
-                if opts.dechirp == 'True': images_X = images_X * downchirp
-                if opts.dechirp == 'True': images_Y = images_Y * downchirpY
+            # ============================================
+            #            GENERATE TRAIING IMAGES
+            # ============================================
+            images_X_spectrum = [] # training images * opts.stack_imgs
+            images_Y_spectrum = [] # training images * opts.stack_imgs
+            if opts.dechirp == 'True': images_X = images_X * downchirp
+            if opts.dechirp == 'True': images_Y = images_Y * downchirpY
+            for i in range(opts.stack_imgs):
+                images_X_spectrum_raw = torch.stft(input=images_X.select(1,i), n_fft=opts.stft_nfft, 
+                                                    hop_length=opts.stft_overlap , win_length=opts.stft_window ,
+                                                    pad_mode='constant',return_complex=True)
+                images_X_spectrum.append(spec_to_network_input2( spec_to_network_input(images_X_spectrum_raw, opts), opts ))
+            
+                images_Y_spectrum_raw = torch.stft(input=images_Y, n_fft=opts.stft_nfft, 
+                                                    hop_length=opts.stft_overlap , win_length=opts.stft_window ,
+                                                    pad_mode='constant',return_complex=True)
+                images_Y_spectrum.append( spec_to_network_input2(spec_to_network_input(images_Y_spectrum_raw, opts), opts))
+
+            
+            #########################################
+            ##              FORWARD
+            #########################################
+            g_optimizer.zero_grad()
+            G_Y_loss = 0
+            G_Image_loss = 0
+            G_Class_loss = 0
+            if opts.model_ver == 0:
+                fake_Y_spectrum = mask_CNN(torch.cat(images_X_spectrum,1))
                 for i in range(opts.stack_imgs):
-                    images_X_spectrum_raw = torch.stft(input=images_X.select(1,i), n_fft=opts.stft_nfft, 
-                                                        hop_length=opts.stft_overlap , win_length=opts.stft_window ,
-                                                        pad_mode='constant',return_complex=True)
-                    images_X_spectrum.append( spec_to_network_input(images_X_spectrum_raw, opts) )
-                
-                    images_Y_spectrum_raw = torch.stft(input=images_Y, n_fft=opts.stft_nfft, 
-                                                        hop_length=opts.stft_overlap , win_length=opts.stft_window ,
-                                                        pad_mode='constant',return_complex=True)
-                    images_Y_spectrum.append( spec_to_network_input(images_Y_spectrum_raw, opts) )
-
-                
-                #########################################
-                ##              FORWARD
-                #########################################
-                g_optimizer.zero_grad()
-                G_Y_loss = 0
-                G_Image_loss = 0
-                G_Class_loss = 0
-                if opts.model_ver == 0:
-                    fake_Y_spectrum = mask_CNN(torch.cat(images_X_spectrum,1))
+                    g_y_pix_loss = loss_spec(fake_Y_spectrum[:,i*2:i*2+2,:,:], images_Y_spectrum[i])
+                    labels_X_estimated = C_XtoY(fake_Y_spectrum[:,i*2:i*2+2,:,:])
+                    g_y_class_loss = loss_class(labels_X_estimated, labels_X)
+                    G_Image_loss = opts.w_image * g_y_pix_loss
+                    G_Class_loss = g_y_class_loss
+                    G_Y_loss += opts.w_image * g_y_pix_loss + g_y_class_loss 
+                    _, labels_X_estimated = torch.max(labels_X_estimated, 1)
+                    test_right_case = to_data(labels_X_estimated == labels_X)
+                    G_Acc += np.sum(test_right_case)/opts.stack_imgs
+            else: 
+                #with torch.no_grad():
+                fake_Y_spectrums = mask_CNN(images_X_spectrum) #CNN input: a list of images, output: a list of images
+                if opts.cxtoy_each == 'True':
                     for i in range(opts.stack_imgs):
-                        g_y_pix_loss = loss_spec(fake_Y_spectrum[:,i*2:i*2+2,:,:], images_Y_spectrum[i])
-                        labels_X_estimated = C_XtoY(fake_Y_spectrum[:,i*2:i*2+2,:,:])
-                        g_y_class_loss = loss_class(labels_X_estimated, labels_X)
-                        G_Image_loss = opts.w_image * g_y_pix_loss
-                        G_Class_loss = g_y_class_loss
-                        G_Y_loss += opts.w_image * g_y_pix_loss + g_y_class_loss 
-                        _, labels_X_estimated = torch.max(labels_X_estimated, 1)
-                        test_right_case = to_data(labels_X_estimated == labels_X)
-                        G_Acc += np.sum(test_right_case)/opts.stack_imgs
-                else: 
-                    #with torch.no_grad():
-                    fake_Y_spectrums = mask_CNN(images_X_spectrum) #CNN input: a list of images, output: a list of images
-                    if opts.cxtoy_each == 'True':
-                        for i in range(opts.stack_imgs):
-                            fake_Y_spectrum = fake_Y_spectrums[i]
-                            g_y_pix_loss1 = loss_spec(fake_Y_spectrum, images_Y_spectrum[0])
-                            g_y_pix_loss2 = loss_spec(torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]), torch.abs(images_Y_spectrum[0][:,0]+1j*images_Y_spectrum[0][:,1]))
-                            if opts.image_loss_abs=='True': g_y_pix_loss = g_y_pix_loss1
-                            elif opts.image_loss_abs=='False': g_y_pix_loss = g_y_pix_loss2
-                            else: raise NotImplementedError
-
-                            labels_X_estimated = C_XtoY(fake_Y_spectrum)
-                            g_y_class_loss = loss_class(labels_X_estimated, labels_X)
-                            G_Image_loss += opts.w_image * g_y_pix_loss
-                            G_Class_loss += g_y_class_loss
-                    elif opts.cxtoy_each == 'False':
-                        fake_Y_spectrum = torch.mean(torch.stack(fake_Y_spectrums,0),0) #average of CNN outputs
+                        fake_Y_spectrum = fake_Y_spectrums[i]
                         g_y_pix_loss1 = loss_spec(fake_Y_spectrum, images_Y_spectrum[0])
                         g_y_pix_loss2 = loss_spec(torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]), torch.abs(images_Y_spectrum[0][:,0]+1j*images_Y_spectrum[0][:,1]))
                         if opts.image_loss_abs=='True': g_y_pix_loss = g_y_pix_loss1
@@ -223,207 +210,227 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
 
                         labels_X_estimated = C_XtoY(fake_Y_spectrum)
                         g_y_class_loss = loss_class(labels_X_estimated, labels_X)
-                        G_Image_loss = opts.w_image * g_y_pix_loss
-                        G_Class_loss = g_y_class_loss
+                        G_Image_loss += opts.w_image * g_y_pix_loss
+                        G_Class_loss += g_y_class_loss
+                elif opts.cxtoy_each == 'False':
+                    fake_Y_spectrum = torch.mean(torch.stack(fake_Y_spectrums,0),0) #average of CNN outputs
+                    g_y_pix_loss1 = loss_spec(fake_Y_spectrum, images_Y_spectrum[0])
+                    g_y_pix_loss2 = loss_spec(torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]), torch.abs(images_Y_spectrum[0][:,0]+1j*images_Y_spectrum[0][:,1]))
+                    if opts.image_loss_abs=='True': g_y_pix_loss = g_y_pix_loss1
+                    elif opts.image_loss_abs=='False': g_y_pix_loss = g_y_pix_loss2
                     else: raise NotImplementedError
 
-                    G_Y_loss = G_Image_loss + G_Class_loss 
-                    _, labels_X_estimated = torch.max(labels_X_estimated, 1)
-                    test_right_case = to_data(labels_X_estimated == labels_X)
-                    G_Acc += np.sum(test_right_case)
-                G_Y_loss.backward()
-                g_optimizer.step()
+                    labels_X_estimated = C_XtoY(fake_Y_spectrum)
+                    g_y_class_loss = loss_class(labels_X_estimated, labels_X)
+                    G_Image_loss = opts.w_image * g_y_pix_loss
+                    G_Class_loss = g_y_class_loss
+                else: raise NotImplementedError
 
-                
-                #########################################
-                ##     LOG THE LOSS OF LATEST opts.log_step*5 STEPS
-                #########################################
-                if len(G_Y_loss_avg)<opts.log_step:
-                    G_Y_loss_avg.append(G_Y_loss.item())
-                    G_Image_loss_avg.append(G_Image_loss.item())
-                    G_Class_loss_avg.append(G_Class_loss.item())
-                else:
-                    G_Y_loss_avg[iteration % opts.log_step] = G_Y_loss.item()
-                    G_Image_loss_avg[iteration % opts.log_step] = G_Image_loss.item()
-                    G_Class_loss_avg[iteration % opts.log_step] = G_Class_loss.item()
-                if iteration % opts.log_step == 0:
-                    output_lst = ["{:6d}".format(iteration),
-                                    "{:6.3f}".format(np.mean(G_Y_loss_avg)),
-                                    "{:6.3f}".format(np.mean(G_Image_loss_avg)),
-                                    "{:6.3f}".format(np.mean(G_Class_loss_avg)),
-                                    "{:6.3f}".format(G_Acc / opts.log_step / opts.batch_size),
-                                    "{:6.3f}".format(time.time() - oldtime)]
-                    output_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' + ' '.join(output_lst)
-                    oldtime = time.time()
-                    print(output_str)
+                G_Y_loss = G_Image_loss + G_Class_loss 
+                _, labels_X_estimated = torch.max(labels_X_estimated, 1)
+                test_right_case = to_data(labels_X_estimated == labels_X)
+                G_Acc += np.sum(test_right_case)
+            G_Y_loss.backward()
+            g_optimizer.step()
+
+            
+            #########################################
+            ##     LOG THE LOSS OF LATEST opts.log_step*5 STEPS
+            #########################################
+            if len(G_Y_loss_avg)<opts.log_step:
+                G_Y_loss_avg.append(G_Y_loss.item())
+                G_Image_loss_avg.append(G_Image_loss.item())
+                G_Class_loss_avg.append(G_Class_loss.item())
+            else:
+                G_Y_loss_avg[iteration % opts.log_step] = G_Y_loss.item()
+                G_Image_loss_avg[iteration % opts.log_step] = G_Image_loss.item()
+                G_Class_loss_avg[iteration % opts.log_step] = G_Class_loss.item()
+            if iteration % opts.log_step == 0:
+                output_lst = ["{:6d}".format(iteration),
+                                "{:6.3f}".format(np.mean(G_Y_loss_avg)),
+                                "{:6.3f}".format(np.mean(G_Image_loss_avg)),
+                                "{:6.3f}".format(np.mean(G_Class_loss_avg)),
+                                "{:6.3f}".format(G_Acc / opts.log_step / opts.batch_size),
+                                "{:6.3f}".format(time.time() - oldtime)]
+                output_str = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' + ' '.join(output_lst)
+                oldtime = time.time()
+                print(output_str)
+                with open(opts.logfile,'a') as f:
+                    f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + ' , '.join(output_lst))
+                G_Acc = 0
+
+            ## checkpoint
+            if (iteration) % opts.checkpoint_every == 0:
+                checkpoint(iteration, mask_CNN, C_XtoY, opts)
+
+            ## test
+            if iteration % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
+                mask_CNN.eval()
+                C_XtoY.eval()
+                with torch.no_grad():
+                    #print('start testing..')
+                    error_matrix = 0
+                    error_matrix_count = 0
+                    val_iter = iter(val_dataloader)
+                    iteration2 = 0
+                    G_Image_loss_avg_test = 0
+                    G_Class_loss_avg_test = 0
+                    sample_cnt = 0
+                    for images_X_test, labels_X_test, images_Y_test0, data_file_name in val_iter:
+                            if iteration2 >= 20: break
+                            iteration2 += 1
+                            labels_X_test = labels_X_test.cuda()
+
+                            temp = torch.tensor([[1 / (abs(i- (labels_X_test[k] + opts.n_classes // 2) %opts.n_classes)  +1 )for i in range(opts.n_classes)] for k in range(opts.batch_size)])
+                            temp = temp.unsqueeze(2).repeat(1, 1, 33) ##debug images_Y_spectrum_raw=33
+                            temp = temp.cuda()
+                            #prepare testing data
+                            images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
+                            if(opts.flank>=0 and iteration2 < 5):
+                                print('======WARNING: FLANKING IMAGES TO', opts.flank, '=========')
+                            #for i in range(opts.stack_imgs):
+                            for i in range(opts.flank):
+                                images_X_test[:,i,:] = images_X_test[:,opts.flank,:]
+                            images_Y_test = to_var(images_Y_test0[0])
+                            images_X_test_spectrum = []
+                            images_Y_test_spectrum = []
+                            if opts.dechirp == 'True': images_X_test = images_X_test* downchirp
+                            if opts.dechirp == 'True': images_Y_test = images_Y_test * downchirpY
+                            for i in range(opts.stack_imgs):
+                                images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft, #(opts.n_classes* opts.fs // opts.bw)
+                                                    hop_length=opts.stft_overlap , win_length=opts.stft_window ,
+                                                    pad_mode='constant',return_complex=True)
+                                images_X_test_spectrum.append(spec_to_network_input2(spec_to_network_input(images_X_test_spectrum_raw, opts),opts))
+
+                                images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
+                                                    hop_length=opts.stft_overlap , win_length=opts.stft_window,
+                                                    pad_mode='constant',return_complex=True)
+                                images_Y_test_spectrum_raw = spec_to_network_input(images_Y_test_spectrum_raw, opts)
+                                if opts.line == 'True': 
+                                    images_Y_test_spectrum_raw *= temp
+                                images_Y_test_spectrum_raw = spec_to_network_input2(images_Y_test_spectrum_raw, opts)
+                                images_Y_test_spectrum.append(images_Y_test_spectrum_raw)
+
+                            # forward
+                            if opts.model_ver == 0: 
+                                fake_Y_test_spectrum = mask_CNN(torch.cat(images_X_test_spectrum, 1))
+                                labels_X_estimated = C_XtoY(fake_Y_test_spectrum[:,:2,:,:])
+                                g_y_pix_loss = loss_spec(fake_Y_test_spectrum[:,:2,:,:], images_Y_test_spectrum[0])
+                            else: 
+                                fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum) #CNN input: a list of images, output: a list of images
+                                fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
+                                labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
+                                g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum[0])
+
+                            g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
+                            G_Image_loss_avg_test += g_y_pix_loss.item() 
+                            G_Class_loss_avg_test += g_y_class_loss.item() 
+
+                            _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
+                            test_right_case = to_data(labels_X_test_estimated == labels_X_test)
+                            error_matrix += np.sum(test_right_case)
+
+                            error_matrix_count += opts.batch_size
+
+                            if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
+                                sample_cnt+=1
+                                print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
+                                #print(data_file_name)
+                                save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'val', opts)
+                    error_matrix2 = error_matrix / error_matrix_count
+                    print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
+                    with open(opts.logfile2,'a') as f:
+                        f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
                     with open(opts.logfile,'a') as f:
-                        f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + ' , '.join(output_lst))
-                    G_Acc = 0
-
-                ## checkpoint
-                if (iteration) % opts.checkpoint_every == 0:
-                    checkpoint(iteration, mask_CNN, C_XtoY, opts)
-
-                ## test
-                if iteration % opts.test_step == 0:# or iteration == opts.init_train_iter + opts.train_iters:
-                    mask_CNN.eval()
-                    C_XtoY.eval()
-                    with torch.no_grad():
-                        #print('start testing..')
-                        error_matrix = 0
-                        error_matrix_count = 0
-                        val_iter = iter(val_dataloader)
-                        iteration2 = 0
-                        G_Image_loss_avg_test = 0
-                        G_Class_loss_avg_test = 0
-                        sample_cnt = 0
-                        for images_X_test, labels_X_test, images_Y_test0, data_file_name in val_iter:
-                                #if iteration2 >= opts.max_test_iters: break
-                                iteration2 += 1
-                                labels_X_test = labels_X_test.cuda()
-
-                                #prepare testing data
-                                images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
-                                if(opts.flank>=0 and iteration2 < 5):
-                                    print('======WARNING: FLANKING IMAGES TO', opts.flank, '=========')
-                                #for i in range(opts.stack_imgs):
-                                for i in range(opts.flank):
-                                    images_X_test[:,i,:] = images_X_test[:,opts.flank,:]
-                                images_Y_test = to_var(images_Y_test0[0])
-                                images_X_test_spectrum = []
-                                images_Y_test_spectrum = []
-                                if opts.dechirp == 'True': images_X_test = images_X_test* downchirp
-                                if opts.dechirp == 'True': images_Y_test = images_Y_test * downchirpY
-                                for i in range(opts.stack_imgs):
-                                    images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
-                                                        hop_length=opts.stft_overlap , win_length=opts.stft_window ,
-                                                        pad_mode='constant',return_complex=True)
-                                    images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
-
-                                    images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
-                                                        hop_length=opts.stft_overlap , win_length=opts.stft_window,
-                                                        pad_mode='constant',return_complex=True)
-                                    images_Y_test_spectrum.append(spec_to_network_input(images_Y_test_spectrum_raw, opts))
-
-                                # forward
-                                if opts.model_ver == 0: 
-                                    fake_Y_test_spectrum = mask_CNN(torch.cat(images_X_test_spectrum, 1))
-                                    labels_X_estimated = C_XtoY(fake_Y_test_spectrum[:,:2,:,:])
-                                    g_y_pix_loss = loss_spec(fake_Y_test_spectrum[:,:2,:,:], images_Y_test_spectrum[0])
-                                else: 
-                                    fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum) #CNN input: a list of images, output: a list of images
-                                    fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
-                                    labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
-                                    g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum[0])
-
-                                g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
-                                G_Image_loss_avg_test += g_y_pix_loss.item() 
-                                G_Class_loss_avg_test += g_y_class_loss.item() 
-
-                                _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
-                                test_right_case = to_data(labels_X_test_estimated == labels_X_test)
-                                error_matrix += np.sum(test_right_case)
-
-                                error_matrix_count += opts.batch_size
-
-                                if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
-                                    sample_cnt+=1
-                                    print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
-                                    #print(data_file_name)
-                                    save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'val', opts)
-                        error_matrix2 = error_matrix / error_matrix_count
-                        print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
-                        with open(opts.logfile2,'a') as f:
-                            f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
-                        with open(opts.logfile,'a') as f:
-                            f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
-                        if error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00001 and iteration - opts.init_train_iter >= opts.start_lr_decay:
-                            opts.lr = opts.lr * 0.5
-                            g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
-                            print('------------INSUFFICIENT PROGRESS, DOWNGRADING LREANING RATE TO',str(opts.lr),'------------')
-                            with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'lr changed: '+str(opts.lr))
-                            scoreboards = [0, 0]
-                        else:
-                            scoreboards.append(error_matrix2)
-                        if(error_matrix2>=opts.terminate_acc):
-                            print('REACHED',opts.terminate_acc,'ACC, TERMINATINg...')
-                            iteration = opts.init_train_iter + opts.train_iters + 1
-                            break
-                        print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
-    #return mask_CNN, C_XtoY
-    except KeyboardInterrupt:
-        print(' KEYBOARD INTERRUPT, PERFORMING FINAL TEST BEFORE EXITING...')
-    except Exception as e:
-        raise e
-    finally:
-        print('-------------------- FINAL TEST --------------------')
-        mask_CNN.eval()
-        C_XtoY.eval()
-        with torch.no_grad():
-            #print('start testing..')
-            error_matrix = 0
-            error_matrix_count = 0
-            test_iter = iter(testing_dataloader)
-            iteration2 = 0
-            G_Image_loss_avg_test = 0
-            G_Class_loss_avg_test = 0
-            sample_cnt = 0
-            for images_X_test, labels_X_test, images_Y_test0, data_file_name in test_iter:
-                    #if iteration2 >= opts.max_test_iters: break
-                    iteration2 += 1
-                    labels_X_test = labels_X_test.cuda()
-
-                    #prepare testing data
-                    images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
-                    if(opts.flank>=0 and iteration2 < 5):
-                        print('======WARNING: FLANKING IMAGES TO', opts.flank, '=========')
-                    #for i in range(opts.stack_imgs):
-                    for i in range(opts.flank):
-                        images_X_test[:,i,:] = images_X_test[:,opts.flank,:]
-                    images_Y_test = to_var(images_Y_test0[0])
-                    images_X_test_spectrum = []
-                    images_Y_test_spectrum = []
-                    for i in range(opts.stack_imgs):
-                        images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
-                                            hop_length=opts.stft_overlap , win_length=opts.stft_window ,
-                                            pad_mode='constant',return_complex=True)
-                        images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
-
-                        images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
-                                            hop_length=opts.stft_overlap , win_length=opts.stft_window,
-                                            pad_mode='constant',return_complex=True)
-                        images_Y_test_spectrum.append(spec_to_network_input(images_Y_test_spectrum_raw, opts))
-
-                    # forward
-                    if opts.model_ver == 0: 
-                        fake_Y_test_spectrum = mask_CNN(torch.cat(images_X_test_spectrum, 1))
-                        labels_X_estimated = C_XtoY(fake_Y_test_spectrum[:,:2,:,:])
-                        g_y_pix_loss = loss_spec(fake_Y_test_spectrum[:,:2,:,:], images_Y_test_spectrum[0])
-                    else: 
-                        fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum) #CNN input: a list of images, output: a list of images
-                        fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
-                        labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
-                        g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum[0])
-
-                    g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
-                    G_Image_loss_avg_test += g_y_pix_loss.item() 
-                    G_Class_loss_avg_test += g_y_class_loss.item() 
-
-                    _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
-                    test_right_case = to_data(labels_X_test_estimated == labels_X_test)
-                    error_matrix += np.sum(test_right_case)
-
-                    error_matrix_count += opts.batch_size
-
-                    if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
-                        sample_cnt+=1
-                        print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
-                        #print(data_file_name)
-                        save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'test', opts)
-            error_matrix2 = error_matrix / error_matrix_count
-            print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
-            with open(opts.logfile2,'a') as f:
-                f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
-            with open(opts.logfile,'a') as f:
-                f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+                        f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+                    if error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00001 and iteration - opts.init_train_iter >= opts.start_lr_decay:
+                        opts.lr = opts.lr * 0.5
+                        g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
+                        print('------------INSUFFICIENT PROGRESS, DOWNGRADING LREANING RATE TO',str(opts.lr),'------------')
+                        with open(opts.logfile,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'lr changed: '+str(opts.lr))
+                        scoreboards = [0, 0]
+                    else:
+                        scoreboards.append(error_matrix2)
+                    if(error_matrix2>=opts.terminate_acc):
+                        print('REACHED',opts.terminate_acc,'ACC, TERMINATINg...')
+                        iteration = opts.init_train_iter + opts.train_iters + 1
+                        break
+                    print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
     return mask_CNN, C_XtoY
+    '''
+except KeyboardInterrupt:
+    print(' KEYBOARD INTERRUPT, PERFORMING FINAL TEST BEFORE EXITING...')
+except Exception as e:
+    raise e
+finally:
+    print('-------------------- FINAL TEST --------------------')
+    mask_CNN.eval()
+    C_XtoY.eval()
+    with torch.no_grad():
+        #print('start testing..')
+        error_matrix = 0
+        error_matrix_count = 0
+        test_iter = iter(testing_dataloader)
+        iteration2 = 0
+        G_Image_loss_avg_test = 0
+        G_Class_loss_avg_test = 0
+        sample_cnt = 0
+        for images_X_test, labels_X_test, images_Y_test0, data_file_name in test_iter:
+                #if iteration2 >= opts.max_test_iters: break
+                iteration2 += 1
+                labels_X_test = labels_X_test.cuda()
+
+                #prepare testing data
+                images_X_test, labels_X_test = to_var(images_X_test), to_var(labels_X_test)
+                if(opts.flank>=0 and iteration2 < 5):
+                    print('======WARNING: FLANKING IMAGES TO', opts.flank, '=========')
+                #for i in range(opts.stack_imgs):
+                for i in range(opts.flank):
+                    images_X_test[:,i,:] = images_X_test[:,opts.flank,:]
+                images_Y_test = to_var(images_Y_test0[0])
+                images_X_test_spectrum = []
+                images_Y_test_spectrum = []
+                for i in range(opts.stack_imgs):
+                    images_X_test_spectrum_raw = torch.stft(input=images_X_test.select(1,i), n_fft=opts.stft_nfft,
+                                        hop_length=opts.stft_overlap , win_length=opts.stft_window ,
+                                        pad_mode='constant',return_complex=True)
+                    images_X_test_spectrum.append(spec_to_network_input(images_X_test_spectrum_raw, opts))
+
+                    images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
+                                        hop_length=opts.stft_overlap , win_length=opts.stft_window,
+                                        pad_mode='constant',return_complex=True)
+                    images_Y_test_spectrum.append(spec_to_network_input(images_Y_test_spectrum_raw, opts))
+
+                # forward
+                if opts.model_ver == 0: 
+                    fake_Y_test_spectrum = mask_CNN(torch.cat(images_X_test_spectrum, 1))
+                    labels_X_estimated = C_XtoY(fake_Y_test_spectrum[:,:2,:,:])
+                    g_y_pix_loss = loss_spec(fake_Y_test_spectrum[:,:2,:,:], images_Y_test_spectrum[0])
+                else: 
+                    fake_Y_test_spectrums = mask_CNN(images_X_test_spectrum) #CNN input: a list of images, output: a list of images
+                    fake_Y_test_spectrum = torch.mean(torch.stack(fake_Y_test_spectrums,0),0)
+                    labels_X_estimated = C_XtoY(fake_Y_test_spectrum)
+                    g_y_pix_loss = loss_spec(fake_Y_test_spectrum, images_Y_test_spectrum[0])
+
+                g_y_class_loss = loss_class(labels_X_estimated, labels_X_test)
+                G_Image_loss_avg_test += g_y_pix_loss.item() 
+                G_Class_loss_avg_test += g_y_class_loss.item() 
+
+                _, labels_X_test_estimated = torch.max(labels_X_estimated, 1)
+                test_right_case = to_data(labels_X_test_estimated == labels_X_test)
+                error_matrix += np.sum(test_right_case)
+
+                error_matrix_count += opts.batch_size
+
+                if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
+                    sample_cnt+=1
+                    print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
+                    #print(data_file_name)
+                    save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'test', opts)
+        error_matrix2 = error_matrix / error_matrix_count
+        print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count*opts.batch_size*opts.w_image) ,'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count*opts.batch_size))
+        with open(opts.logfile2,'a') as f:
+            f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+        with open(opts.logfile,'a') as f:
+            f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+    return mask_CNN, C_XtoY'''

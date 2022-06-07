@@ -31,8 +31,8 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     #state_dict['fc1.weight']= torch.cat((state_dict['conv3.1.weight'], torch.zeros(64,258-130,5,5)),1)
     maskCNN.load_state_dict(state_dict)#, strict=False)
 
-    C_XtoY = classificationHybridModel(opts)#conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.cxtoy_conv_dim_lstm)
-    if False:# os.path.exists(C_XtoY_path):
+    C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.cxtoy_conv_dim_lstm)
+    if os.path.exists(C_XtoY_path):
         state_dict = torch.load( C_XtoY_path, map_location=lambda storage, loc: storage)
         for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
         #state_dict['dense.weight']= state_dict['dense.weight'][:,:state_dict['dense.weight'].shape[1]//opts.stack_imgs ]
@@ -112,8 +112,8 @@ if __name__ == "__main__":
         mask_CNN, C_XtoY = load_checkpoint(opts, maskCNNModel, classificationHybridModel)
     else:
         mask_CNN = maskCNNModel(opts)
-        #C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
-        C_XtoY = classificationHybridModel(opts)#conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
+        C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
+        #C_XtoY = classificationHybridModel(opts)#conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
     mask_CNN = nn.DataParallel(mask_CNN)
     C_XtoY = nn.DataParallel(C_XtoY)
 

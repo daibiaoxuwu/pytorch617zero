@@ -30,7 +30,7 @@ def create_parser():
     parser.add_argument( '--num_workers', type=int, default=0, help='The number of threads to use for the DataLoader.')
     parser.add_argument('--lr', type=float, default=0.001, help='The learning rate (default 0.0003)') 
     parser.add_argument('--sorting_type', type=int, default=4, choices=[4], help='The index for the selected domain.')
-    parser.add_argument('--w_image', type=int, default=128, help='The scaling factor for the imaging loss')
+    parser.add_argument('--w_image', type=float, default=128, help='The scaling factor for the imaging loss')
     parser.add_argument('--beta1', type=float, default=0.5)
     parser.add_argument('--beta2', type=float, default=0.999)
     parser.add_argument('--evaluations_dir', type=str, default='/data/djl/evaluations', help='Choose the root path to rf signals.')
@@ -66,6 +66,7 @@ def create_parser():
     parser.add_argument('--start_lr_decay', type=int, default=1000)
     parser.add_argument('--cxtoy_each', type=str, default='True')
     parser.add_argument('--dechirp', type=str, default='False')
+    parser.add_argument('--line', type=str, default='False')
     
 
     return parser

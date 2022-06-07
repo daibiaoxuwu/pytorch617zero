@@ -37,13 +37,15 @@ def spec_to_network_input(x, opts):
         list(map(lambda x: torch.max(x), y_abs)))
     y_abs_max = to_var(torch.unsqueeze(torch.unsqueeze(y_abs_max, 1), 2))
     y = torch.div(y, y_abs_max)*5
+    return y
 
+def spec_to_network_input2(x, opts):
     if opts.x_image_channel == 2: 
-        y = torch.view_as_real(y)  # [B,H,W,2] 
+        y = torch.view_as_real(x)  # [B,H,W,2] 
         y = torch.transpose(y, 2, 3)
         y = torch.transpose(y, 1, 2)
     else:
-        y = torch.angle(y)  # [B,H,W]
+        y = torch.angle(x)  # [B,H,W]
         y = torch.unsqueeze(y, 1)  # [B,H,W]
     return y  # [B,2,H,W]
 
