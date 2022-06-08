@@ -70,6 +70,7 @@ def create_parser():
     parser.add_argument('--out_channel', type=int, default=1)
     parser.add_argument('--cxtoy', type=str, default='True')
     parser.add_argument('--w_line', type=float, default=1)
+    parser.add_argument('--load_cxtoy', type=str, default='True')
     
 
     return parser

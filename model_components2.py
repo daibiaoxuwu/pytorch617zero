@@ -204,5 +204,9 @@ class maskCNNModel2(nn.Module):
             out = out.view(out.size(0), out.size(1), 1, -1)
             out = out.transpose(1, 2)
             out = out.transpose(2, 3)
-            outs[idx] = self.final(out * xs[idx]).contiguous()
+            print(out.shape)
+            outc = out[:,:,:,0]+out[:,:,:,1]*1j
+            xc = xs[idx][:,:,:,0]+xs[idx][:,:,:,1]*1j
+            output = torch.view_as_real(outc*xc)
+            outs[idx] = self.final(output).contiguous()
         return outs

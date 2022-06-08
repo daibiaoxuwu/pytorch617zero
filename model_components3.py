@@ -178,5 +178,11 @@ class maskCNNModel3(nn.Module):
             if self.opts.out_channel == 1:
                 outs[idx] = self.final(out * xs[idx]).contiguous()
             elif self.opts.out_channel == 2:
-                outs[idx] = self.final(out).contiguous()
+                outc = out[:,0,:,:]+out[:,1,:,:]*1j
+                xc = xs[idx][:,0,:,:]+xs[idx][:,1,:,:]*1j
+                output = torch.view_as_real(outc*xc)
+                output = output.transpose(3, 2)
+                output = output.transpose(2, 1)
+                outs[idx] = self.final(output).contiguous()
+                #outs[idx] = self.final(out).contiguous()
         return outs

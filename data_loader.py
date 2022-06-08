@@ -57,7 +57,7 @@ class lora_dataset(data.Dataset):
                     data_file_parts[6] = '1'
                     data_file_parts[7] = '1.mat'
                     data_file_name_new = '_'.join(data_file_parts)
-                    path = os.path.join(self.opts.data_dir, data_file_name_new)
+                    path = os.path.join(self.opts.data_dir.replace('125k_data','125k_new'), data_file_name_new)
                     data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
 
                 elif self.opts.data_format < 2:
@@ -251,7 +251,7 @@ def lora_loader(opts):
         print('ALL SNR IN DATASET:',snr_all)
         main_snr = opts.snr_list[0]
         files_35 = list(filter(lambda i: i.split('_')[1] == str(35) ,files))
-        vals_35 = set([i.split('_')[0] for i in files_35])
+        vals_35 = set([i.split('_')[0] for i in os.listdir(os.path.join(opts.data_dir.replace('_data','_new')))])
         print('VAL COUNT', len(vals_35))
         files_all = set(filter(lambda i: i.split('_')[1] == str(main_snr) and i.split('_')[0] in vals_35 ,files))
         files_set = set(files)

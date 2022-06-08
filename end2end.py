@@ -38,12 +38,13 @@ if torch.cuda.is_available():
 
 
 
-def checkpoint(iteration, mask_CNN, C_XtoY, opts):
+def checkpoint(iteration, models, opts):
     mask_CNN_path = os.path.join(opts.checkpoint_dir, str(iteration) + '_maskCNN.pkl')
     create_dir(opts.checkpoint_dir)
-    torch.save(mask_CNN.state_dict(), mask_CNN_path)
-    C_XtoY_path = os.path.join(opts.checkpoint_dir, str(iteration) + '_C_XtoY.pkl')
-    torch.save(C_XtoY.state_dict(), C_XtoY_path)
+    torch.save(models[0].state_dict(), mask_CNN_path)
+    if opts.cxtoy == 'True':
+        C_XtoY_path = os.path.join(opts.checkpoint_dir, str(iteration) + '_C_XtoY.pkl')
+        torch.save(models[1].state_dict(), C_XtoY_path)
     print('CKPT: ', mask_CNN_path)
 
 def binary(y):
@@ -69,10 +70,10 @@ def merge_images(sources, targets, Y, test_right_case, opts):
             merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w:(j * 3 + 2) * w] = t
             merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 2) * w:(j * 3 + 3) * w] = y
             if not c:
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3) * w + 1] = np.max(merged)*0.7
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w - 1:(j * 3 + 1) * w] = np.max(merged)*0.7
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + stack_idx) * h + 1, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.7
-                 merged[:, (i * opts.stack_imgs + 1 + stack_idx) * h - 1:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.7
+                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3) * w + 1] = np.max(merged)*0.1
+                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w - 1:(j * 3 + 1) * w] = np.max(merged)*0.1
+                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + stack_idx) * h + 1, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.1
+                 merged[:, (i * opts.stack_imgs + 1 + stack_idx) * h - 1:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.1
     merged = merged.transpose(1, 2, 0)
     print(merged.shape)
     newsize = ( merged.shape[1] ,merged.shape[1] * opts.stack_imgs )
@@ -102,10 +103,12 @@ def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, test_right_case, name, o
     print('SAMPLE: {}'.format(path))
 
 
-def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_CNN, C_XtoY, opts):
+def training_loop(training_dataloader, val_dataloader, testing_dataloader,models, opts):
     """Runs the training loop.
         * Saves checkpoint every opts.checkpoint_every iterations
     """
+    mask_CNN = models[0]
+    if opts.cxtoy == 'True': C_XtoY = models[1] 
     loss_spec = torch.nn.MSELoss(reduction='mean')
     loss_class = nn.CrossEntropyLoss()
 
@@ -116,7 +119,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
         assert opts.data_format == 2
         fname = '0_35_'+str(opts.sf)+'_'+str(opts.bw)+'_0_0_1_1.mat'
         path = os.path.join(opts.data_dir,fname)
-        path = path.replace('test','new')
+        path = path.replace('test','new').replace('125k_data','125k_new')
         print('LOADING DECHIRP FROM',path)
         lora_img = np.array(scio.loadmat(path)[opts.feature_name].tolist())
         lora_img = np.squeeze(lora_img)
@@ -131,7 +134,9 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
 
     
     # Create generators and discriminators
-    g_params = list(mask_CNN.parameters()) + list(C_XtoY.parameters())
+    
+    g_params = list(mask_CNN.parameters()) 
+    if opts.cxtoy == 'True': g_params += list(C_XtoY.parameters())
     g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
 
     G_Y_loss_avg = []
@@ -156,7 +161,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
         for images_X, labels_X, images_Y, data_file_name in train_iter:
             linefilter_X = linefilter[labels_X,:,:]
             mask_CNN.train()
-            C_XtoY.train()
+            if opts.cxtoy == 'True':C_XtoY.train()
             labels_X = labels_X.cuda()
             if iteration>opts.init_train_iter+opts.train_iters:break
             iteration+=1
@@ -288,12 +293,12 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
 
             ## checkpoint
             if (iteration) % opts.checkpoint_every == 0:
-                checkpoint(iteration, mask_CNN, C_XtoY, opts)
+                checkpoint(iteration, models, opts)
 
             ## test
             if iteration % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
                 mask_CNN.eval()
-                C_XtoY.eval()
+                if opts.cxtoy == 'True':C_XtoY.eval()
                 with torch.no_grad():
                     #print('start testing..')
                     error_matrix = 0
@@ -305,7 +310,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
                     sample_cnt = 0
                     for images_X_test, labels_X_test, images_Y_test0, data_file_name in val_iter:
                             linefilter_X = linefilter[labels_X_test,:,:]
-                            if iteration2 >= 10: break
+                            if iteration2 >= 100: break
                             iteration2 += 1
                             labels_X_test = labels_X_test.cuda()
 
@@ -374,7 +379,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
                         f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
                     with open(opts.logfile,'a') as f:
                         f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
-                    if error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00001 and iteration - opts.init_train_iter >= opts.start_lr_decay:
+                    if False:#error_matrix2 <= scoreboards[-1] and error_matrix2 <= scoreboards[-2] and opts.lr>=0.00001 and iteration - opts.init_train_iter >= opts.start_lr_decay:
                         opts.lr = opts.lr * 0.5
                         g_optimizer = optim.Adam(g_params, opts.lr, [opts.beta1, opts.beta2])
                         print('------------INSUFFICIENT PROGRESS, DOWNGRADING LREANING RATE TO',str(opts.lr),'------------')
@@ -387,7 +392,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,mask_C
                         iteration = opts.init_train_iter + opts.train_iters + 1
                         break
                     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
-    return mask_CNN, C_XtoY
+    return [mask_CNN, C_XtoY]
     '''
 except KeyboardInterrupt:
     print(' KEYBOARD INTERRUPT, PERFORMING FINAL TEST BEFORE EXITING...')
