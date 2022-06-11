@@ -75,8 +75,8 @@ if __name__ == "__main__":
     if opts.SpFD =='True': opts.fs =opts.fs // opts.stack_imgs
     opts.n_classes = 2 ** opts.sf
     opts.stft_nfft = opts.n_classes * opts.fs // opts.bw
-    opts.stft_window = opts.n_classes // 2 
-    opts.stft_overlap = opts.stft_window // 2
+    opts.stft_window = opts.n_classes // 2 * 4
+    opts.stft_overlap = opts.stft_window // 2 // 4
     opts.conv_dim_lstm = opts.n_classes * 8
     opts.freq_size = opts.n_classes
     opts.checkpoint_dir += 'M'+str(opts.model_ver)

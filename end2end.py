@@ -119,7 +119,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
         assert opts.data_format == 2
         fname = '0_35_'+str(opts.sf)+'_'+str(opts.bw)+'_0_0_1_1.mat'
         path = os.path.join(opts.data_dir,fname)
-        path = path.replace('test','new').replace('125k_data','125k_new')
+        path = path.replace('test','new').replace('125k_data2','125k_new')
         print('LOADING DECHIRP FROM',path)
         lora_img = np.array(scio.loadmat(path)[opts.feature_name].tolist())
         lora_img = np.squeeze(lora_img)
@@ -333,9 +333,20 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
                                 images_X_test_spectrum.append(spec_to_network_input2(spec_to_network_input(images_X_test_spectrum_raw, opts),opts))
 
                                 images_Y_test_spectrum_raw = torch.stft(input=images_Y_test, n_fft=opts.stft_nfft,
-                                                    hop_length=opts.stft_overlap , win_length=opts.stft_window,
+                                                    hop_length=opts.stft_overlap, win_length=opts.stft_window,
                                                     pad_mode='constant',return_complex=True)
                                 images_Y_test_spectrum_raw = spec_to_network_input(images_Y_test_spectrum_raw, opts)
+                                '''
+                                merged = torch.abs(images_Y_test_spectrum_raw[0, :, :])
+                                path = os.path.join(opts.checkpoint_dir,
+                                        'image-{:06d}{:d}-Y.png'.format(iteration,opts.snr_list[0]))
+                                merged = (merged - torch.min(merged)) / (torch.max(merged) - torch.min(merged)) * 255
+                                merged = to_data(merged)
+                                merged = cv2.flip(merged, 0)
+                                #print(np.max(merged),np.min(merged),np.mean(merged))
+                                cv2.imwrite(path, merged)
+                                print('SAMPLE: {}'.format(path))'''
+
                                 if opts.line == 'True': 
                                     images_Y_test_spectrum_raw *= linefilter_X
                                 images_Y_test_spectrum_raw = spec_to_network_input2(images_Y_test_spectrum_raw, opts)
