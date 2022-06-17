@@ -17,8 +17,6 @@ from model_components2 import maskCNNModel2, classificationHybridModel2
 from model_components3 import maskCNNModel3, classificationHybridModel3
 from utils import *
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
 def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     maskCNN_path = os.path.join(opts.load_checkpoint_dir, str(opts.load_iters) + '_maskCNN.pkl')
 
@@ -40,12 +38,6 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
             for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
             #state_dict['dense.weight']= state_dict['dense.weight'][:,:state_dict['dense.weight'].shape[1]//opts.stack_imgs ]
             C_XtoY.load_state_dict(state_dict)#, strict=False)
-        '''else:
-            vals = [int(fname.split('_')[0]) for fname in os.listdir(opts.load_checkpoint_dir) if  '_C_XtoY.pkl' in fname]
-            if len(vals)>0:
-                C_XtoY_path = os.path.join(opts.load_checkpoint_dir, str(max(vals)) + '_C_XtoY.pkl')
-                print('LOAD MODEL:', C_XtoY_path)
-                C_XtoY.load_state_dict(state_dict)#, strict=False)'''
         return [maskCNN, C_XtoY]
     else: return [maskCNN, ]
 
@@ -89,7 +81,7 @@ if __name__ == "__main__":
         opts.load_checkpoint_dir = opts.checkpoint_dir
     if opts.data_dir == '/data/djl/data0306/data': opts.data_format = 0
     elif opts.data_dir == '/data/djl/SpF102': opts.data_format = 1
-    elif opts.data_dir == '/data/djl/sf8_76800' or opts.data_dir == '/data/djl/sf9_76800' or '_125k_new' in opts.data_dir or '_125k_test' in opts.data_dir or '_125k_data' in opts.data_dir: opts.data_format = 2
+    elif '_76800' in opts.data_dir or '_125k_new' in opts.data_dir or '_125k_test' in opts.data_dir or '_125k_data' in opts.data_dir: opts.data_format = 2
     elif opts.data_dir == '/data/djl/sf7-1b-out-upload': opts.data_format = 3
     else: raise NotImplementedError
     
@@ -125,7 +117,6 @@ if __name__ == "__main__":
     else:
         mask_CNN = maskCNNModel(opts)
         if opts.cxtoy == 'True': C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
-        #C_XtoY = classificationHybridModel(opts)#conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
     mask_CNN = nn.DataParallel(mask_CNN)
     mask_CNN.cuda()
     models = [mask_CNN, ]
@@ -134,9 +125,6 @@ if __name__ == "__main__":
         C_XtoY.cuda()
         models.append(C_XtoY)
     
-    #Loads the data, creates checkpoint and sample directories, and starts the training loop.
-
-
     opts.logfile = os.path.join(opts.checkpoint_dir, 'logfile-djl-train.txt')
     opts.logfile2 = os.path.join(opts.checkpoint_dir, 'logfile2-djl-train.txt')
     strlist = print_opts(opts)
