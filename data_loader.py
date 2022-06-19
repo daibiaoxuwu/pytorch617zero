@@ -11,6 +11,7 @@ from utils import to_var, to_data, spec_to_network_input, create_dir
 import cv2
 from scipy.signal import chirp, spectrogram
 import matplotlib.pyplot as plt
+import math
 
 class lora_dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
@@ -45,85 +46,66 @@ class lora_dataset(data.Dataset):
                     paths = [os.path.join(self.opts.data_dir, folder, data_file_name) for folder in self.folders_list]
                     data_perY = [self.load_img(path).cuda() for path in paths]
                 elif self.opts.data_format == 2: #DEBUG!!! LOAD -15 INSTEAD OF 35 FOR FORMAT==2
-                    data_file_parts[1] = '35'
-                    data_file_parts[4] = '0'
-                    data_file_parts[6] = '1'
-                    data_file_parts[7] = '1.mat'
-                    data_file_name_new = '_'.join(data_file_parts)
-                    path = os.path.join('/data/djl/sf'+str(self.opts.sf)+'_125k_new', data_file_name_new)
-                    data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
+                    data_perY = []
+                    for k in range(self.opts.stack_imgs):
+                        nsamp = int(self.opts.fs * self.opts.n_classes / self.opts.bw)
+                        t = np.linspace(0, nsamp / self.opts.fs, nsamp)
+                        phi = random.randint(-90, 90)
+                        chirpI = chirp(t, f0=-self.opts.bw/2, f1=self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw , method='linear', phi=phi+90)
+                        chirpQ = chirp(t, f0=-self.opts.bw/2, f1=self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw, method='linear', phi=phi)
+                        mchirp0 = chirpI+1j*chirpQ
+                        mchirp = np.tile(mchirp0, 2)
+                        symbol_index =   int(data_file_parts[5])
+                        '''
+                        for symbol_index in range(256):
+                            time_shift = round((self.opts.n_classes - symbol_index) / self.opts.n_classes * nsamp)
+                            chirp_raw = mchirp[time_shift:time_shift+nsamp]
 
-                    nsamp = int(self.opts.fs * self.opts.n_classes / self.opts.bw)
-                    t = np.linspace(0, nsamp / self.opts.fs, nsamp)
-                    phi = random.randint(-90, 90)
-                    chirpI = chirp(t, f0=-self.opts.bw, f1=self.opts.bw, t1=nsamp / self.opts.fs, method='linear', phi=phi+90)
-                    chirpQ = chirp(t, f0=-self.opts.bw, f1=self.opts.bw, t1=nsamp / self.opts.fs, method='linear', phi=phi)
-                    plt.plot(t, chirpI)
-                    plt.plot(t, chirpQ)
-                    plt.savefig('1.png')
-                    plt.clf()
-                    plt.plot(t, to_data(data_perY[1]).real)
-                    plt.savefig('2.png')
-                    mchirp = chirpI+1j*chirpQ
-                    mchirp = np.repeat(mchirp, 2, axis=0)
-                    symbol_index = ( int(data_file_parts[5])+self.opts.n_classes //2)%self.opts.n_classes
-                    time_shift = round((self.opts.n_classes - symbol_index) / self.opts.n_classes * nsamp)
-                    print(time_shift)
-                    chirp_raw = mchirp[time_shift:time_shift+nsamp]
-                    plt.plot(t, chirp_raw.real)
-                    plt.savefig('3.png')
-                    sys.exit(1)
-                    data_perY[0] = torch.tensor(chirp_raw).cuda()
+                            chirpI1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw , method='linear', phi=90)
+                            chirpQ1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw, method='linear', phi=0)
+                            dechirp = chirpI1+1j*chirpQ1
+
+                            print(time_shift, nsamp, mchirp.shape)
+                            data_perY[0] = torch.tensor(chirp_raw*1e-6)
+
+                            images_X_SpF_spectrum_raw = torch.stft(input= torch.tensor(chirp_raw * dechirp), n_fft=self.opts.stft_nfft, 
+                                            hop_length=self.opts.stft_overlap // self.opts.stack_imgs, win_length=self.opts.stft_window // self.opts.stack_imgs, 
+                                            pad_mode='constant') 
+                            freq_size = self.opts.freq_size 
+                            # trim 
+                            trim_size = freq_size // 2 
+                            # up down 拼接 
+                            # images_X_SpF_spectrum_raw = torch.cat((images_X_SpF_spectrum_raw[-trim_size:, :], images_X_SpF_spectrum_raw[0:trim_size, :]), 0) 
+                            print(images_X_SpF_spectrum_raw.shape,'images_X_SpF_spectrum_raw') 
 
 
+                            merged = to_data(np.abs(images_X_SpF_spectrum_raw)) 
+                            merged = (merged - np.min(merged)) / (np.max(merged) - np.min(merged)) * 255 
+                            merged = np.squeeze(merged) 
+                            merged = cv2.flip(merged, 0) 
+                            cv2.imwrite('SpFData'+str(symbol_index)+'.png', merged) 
+                        sys.exit(1)'''
 
-                elif self.opts.data_format < 2:
-                    path = os.path.join(self.opts.data_dir, data_file_name)
-                    data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
+                        time_shift = round((self.opts.n_classes - symbol_index) / self.opts.n_classes * nsamp)
+                        chirp_raw = mchirp[time_shift:time_shift+nsamp]
+                        data_perY.append( torch.tensor(chirp_raw, dtype = torch.cfloat).cuda())
 
                 data_pers = []
                 for k in range(self.opts.stack_imgs):
-                        index_input = index + 1
-                        while index_input < index + len(self.data_lists):
-                            data_file_name = self.data_lists[index_input % len(self.data_lists)]
-                            data_file_parts = data_file_name.split('_')
-                            label_input = int(data_file_parts[0].split('/')[-1])
-                            if(label_input == label_per.item()  ):
-                                #print('ImgA',k, data_file_name)
-                                if self.opts.data_format == 3:
-                                    data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                                    data_file_name_new = '_'.join(data_file_parts)
-                                    path = os.path.join(self.opts.data_dir, self.folders_list[k], data_file_name_new)
-                                    data_pers.append(self.load_img(path))
-                                elif self.opts.data_format == 1 or self.opts.data_format == 2:
-                                    data_file_parts[1] = str(random.choice(self.opts.snr_list))
-                                    if self.opts.data_format == 1: data_file_parts[7] = str(k + 1) + '.mat'
-                                    data_file_name_new = '_'.join(data_file_parts)
-                                    path = os.path.join(self.opts.data_dir, data_file_name_new)
-                                    data_pers.append(self.load_img(path))
-                                elif self.opts.data_format == 0:
-                                    snr = str(self.opts.snr_list[k])
-                                    data_part0 = data_file_parts[0].split('/')
-                                    data_part0[-2] = snr
-                                    data_file_parts[0] = '/'.join(data_part0)
-                                    data_file_parts[1] = snr 
-                                    if self.opts.random_idx == 'False':
-                                        data_file_parts[-1] = str((index_input+k) % 100 + 1) + '.mat'
-                                    else:
-                                        data_file_parts[-1] = str(random.randint(1,100)) + '.mat'
-                                    data_file_name_new = '_'.join(data_file_parts)
-                                    path = os.path.join(self.opts.data_dir, data_file_name_new)
-                                    data_pers.append(self.load_img(path))
-                                else: raise NotImplementedError
-                                data_file_names.append(data_file_name_new)
-                                break
-                            else:
-                                index_input += 1
+                        snr = self.opts.snr_list[k]
+                        if snr == -15:
+                            amp = 5.6234
+                        elif snr == -20:
+                            amp = 10
+                        elif snr == -25:
+                            amp = 17.7828
+                        else:
+                            raise NotImplementedError
+                        noise =  torch.tensor(amp / math.sqrt(2) * np.random.randn(nsamp) + 1j * amp / math.sqrt(2) * np.random.randn(nsamp), dtype = torch.cfloat).cuda()
+                        data = data_perY[k]
+                        data = data_perY[k] + noise
 
-                        if index_input == index + len(self.data_lists): 
-                            print('SEARCH FAILURE: INDEXINPUT', index_input, index + len(self.data_lists))
-                            return
-                
+                        data_pers.append(data)
 
                 ### ABOUT SPF
 

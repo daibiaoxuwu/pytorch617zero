@@ -5,6 +5,7 @@ import sys
 from datetime import datetime
 import torch.nn.functional as F
 
+from scipy.signal import chirp, spectrogram
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -114,6 +115,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
     # load downchirp
 
     if opts.dechirp == 'True':
+        '''
         #assert opts.data_format == 2
         fname = '0_35_'+str(opts.sf)+'_'+str(opts.bw)+'_0_0_1_1.mat'
         #path = os.path.join(opts.data_dir,fname)
@@ -121,13 +123,20 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
         print('LOADING DECHIRP FROM',path)
         lora_img = np.array(scio.loadmat(path)['chirp_new_SpF'].tolist())
         lora_img = np.squeeze(lora_img)
-        lora_img = lora_img[::-1].copy()
+        lora_img = lora_img[::-1].copy()'''
 
-        downchirp1 = torch.tensor(lora_img, dtype=torch.cfloat).cuda()
-        downchirp0 = torch.conj(downchirp1).clone()
 
-        downchirp = torch.stack([ torch.stack([ downchirp0 for i in range(opts.stack_imgs)])for i in range(opts.batch_size)])
-        downchirpY = torch.stack([ downchirp0 for i in range(opts.batch_size)])
+        nsamp = int(opts.fs * opts.n_classes / opts.bw)
+        t = np.linspace(0, nsamp / opts.fs, nsamp)
+        chirpI1 = chirp(t, f0=opts.bw/2, f1=-opts.bw/2, t1=2** opts.sf / opts.bw , method='linear', phi=90)
+        chirpQ1 = chirp(t, f0=opts.bw/2, f1=-opts.bw/2, t1=2** opts.sf / opts.bw, method='linear', phi=0)
+        dechirp = chirpI1+1j*chirpQ1
+        
+
+        downchirp1 = torch.tensor(dechirp, dtype=torch.cfloat).cuda()
+
+        downchirp = torch.stack([ torch.stack([ downchirp1 for i in range(opts.stack_imgs)])for i in range(opts.batch_size)])
+        downchirpY = torch.stack([ downchirp1 for i in range(opts.batch_size)])
 
 
     
@@ -329,7 +338,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
 
                             if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
                                 sample_cnt+=1
-                                #print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
+                                print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
                                 save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'val', opts)
 
                     error_matrix2 = error_matrix / error_matrix_count
