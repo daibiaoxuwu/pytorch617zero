@@ -260,7 +260,7 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
                 checkpoint(iteration, models, opts)
 
             ## test
-            if iteration % opts.test_step == 0:# or iteration == opts.init_train_iter + opts.train_iters:
+            if iteration % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
                 mask_CNN.eval()
                 if opts.cxtoy == 'True':C_XtoY.eval()
                 with torch.no_grad():

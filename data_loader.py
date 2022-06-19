@@ -9,6 +9,8 @@ import pickle
 import sys
 from utils import to_var, to_data, spec_to_network_input, create_dir
 import cv2
+from scipy.signal import chirp, spectrogram
+import matplotlib.pyplot as plt
 
 class lora_dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
@@ -50,6 +52,31 @@ class lora_dataset(data.Dataset):
                     data_file_name_new = '_'.join(data_file_parts)
                     path = os.path.join('/data/djl/sf'+str(self.opts.sf)+'_125k_new', data_file_name_new)
                     data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
+
+                    nsamp = int(self.opts.fs * self.opts.n_classes / self.opts.bw)
+                    t = np.linspace(0, nsamp / self.opts.fs, nsamp)
+                    phi = random.randint(-90, 90)
+                    chirpI = chirp(t, f0=-self.opts.bw, f1=self.opts.bw, t1=nsamp / self.opts.fs, method='linear', phi=phi+90)
+                    chirpQ = chirp(t, f0=-self.opts.bw, f1=self.opts.bw, t1=nsamp / self.opts.fs, method='linear', phi=phi)
+                    plt.plot(t, chirpI)
+                    plt.plot(t, chirpQ)
+                    plt.savefig('1.png')
+                    plt.clf()
+                    plt.plot(t, to_data(data_perY[1]).real)
+                    plt.savefig('2.png')
+                    mchirp = chirpI+1j*chirpQ
+                    mchirp = np.repeat(mchirp, 2, axis=0)
+                    symbol_index = ( int(data_file_parts[5])+self.opts.n_classes //2)%self.opts.n_classes
+                    time_shift = round((self.opts.n_classes - symbol_index) / self.opts.n_classes * nsamp)
+                    print(time_shift)
+                    chirp_raw = mchirp[time_shift:time_shift+nsamp]
+                    plt.plot(t, chirp_raw.real)
+                    plt.savefig('3.png')
+                    sys.exit(1)
+                    data_perY[0] = torch.tensor(chirp_raw).cuda()
+
+
+
                 elif self.opts.data_format < 2:
                     path = os.path.join(self.opts.data_dir, data_file_name)
                     data_perY = [self.load_img(path).cuda() for i in range(self.opts.stack_imgs)]
