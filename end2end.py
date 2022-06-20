@@ -27,16 +27,6 @@ import torch.autograd.profiler as profiler
 import time
 import math
 import scipy.io as scio
-SEED = 11
-
-# Set the random seed manually for reproducibility.
-np.random.seed(SEED)
-torch.manual_seed(SEED)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(SEED)
-
-
-
 
 
 def checkpoint(iteration, models, opts):
@@ -62,19 +52,14 @@ def merge_images(sources, targets, Y, test_right_case, opts):
     _, _, h, w = sources[0].shape
     row = int(np.sqrt(opts.batch_size))
     column = math.ceil(opts.batch_size / row)
-    merged = np.zeros([opts.y_image_channel, row * h * opts.stack_imgs, column * w * 3])
+    merged = np.zeros([opts.y_image_channel, row * h , column * w * opts.stack_imgs * 3])
     for stack_idx in range(opts.stack_imgs):
         for idx, (s, t, y, c) in enumerate(zip(sources[stack_idx], targets[stack_idx], Y[stack_idx], test_right_case)):
             i = idx // column
             j = idx % column
-            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = s
-            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w:(j * 3 + 2) * w] = t
-            merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 2) * w:(j * 3 + 3) * w] = y
-            if not c:
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3) * w + 1] = np.max(merged)*0.1
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3 + 1) * w - 1:(j * 3 + 1) * w] = np.max(merged)*0.1
-                 merged[:, (i * opts.stack_imgs + stack_idx) * h:(i * opts.stack_imgs + stack_idx) * h + 1, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.1
-                 merged[:, (i * opts.stack_imgs + 1 + stack_idx) * h - 1:(i * opts.stack_imgs + 1 + stack_idx) * h, (j * 3) * w:(j * 3 + 1) * w] = np.max(merged)*0.1
+            merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3)     * w:(j * 3 * opts.stack_imgs + 1 + stack_idx*3) * w,] = s
+            merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3 + 1) * w:(j * 3 * opts.stack_imgs + 2 + stack_idx*3) * w,] = t
+            merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3 + 2) * w:(j * 3 * opts.stack_imgs + 3 + stack_idx*3) * w,] = y
     merged = merged.transpose(1, 2, 0)
     newsize = ( merged.shape[1] ,merged.shape[1] * opts.stack_imgs )
     #return cv2.resize(merged, dsize=newsize)
@@ -102,7 +87,7 @@ def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, test_right_case, name, o
     print('SAVED TEST SAMPLE: {}'.format(path))
 
 
-def training_loop(training_dataloader, val_dataloader, testing_dataloader,models, opts):
+def training_loop(dataloader, models, opts):
     """Runs the training loop.
         * Saves checkpoint every opts.checkpoint_every iterations
     """
@@ -115,17 +100,6 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
     # load downchirp
 
     if opts.dechirp == 'True':
-        '''
-        #assert opts.data_format == 2
-        fname = '0_35_'+str(opts.sf)+'_'+str(opts.bw)+'_0_0_1_1.mat'
-        #path = os.path.join(opts.data_dir,fname)
-        path = os.path.join('/data/djl/sf'+str(opts.sf)+'_125k_new',fname)
-        print('LOADING DECHIRP FROM',path)
-        lora_img = np.array(scio.loadmat(path)['chirp_new_SpF'].tolist())
-        lora_img = np.squeeze(lora_img)
-        lora_img = lora_img[::-1].copy()'''
-
-
         nsamp = int(opts.fs * opts.n_classes / opts.bw)
         t = np.linspace(0, nsamp / opts.fs, nsamp)
         chirpI1 = chirp(t, f0=opts.bw/2, f1=-opts.bw/2, t1=2** opts.sf / opts.bw , method='linear', phi=90)
@@ -159,12 +133,8 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
     trim_size = opts.freq_size // 2
 
     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
-    while iteration < opts.init_train_iter + opts.train_iters:
-        train_iter = iter(training_dataloader)
-        if iteration !=  opts.init_train_iter:  print('============WARNING: REUSING DATA, STARTING NEW TRAINING EPOCH=============')
-
-        for images_X, labels_X, images_Y, data_file_name in train_iter:
-            if iteration>opts.init_train_iter+opts.train_iters:break
+    while iteration<=opts.init_train_iter+opts.train_iters:
+            images_X, labels_X, images_Y, data_file_name = next(dataloader.__iter__())
             iteration+=1
 
             mask_CNN.train()
@@ -276,13 +246,12 @@ def training_loop(training_dataloader, val_dataloader, testing_dataloader,models
                     #print('start testing..')
                     error_matrix = 0
                     error_matrix_count = 0
-                    val_iter = iter(val_dataloader)
                     iteration2 = 0
                     G_Image_loss_avg_test = 0
                     G_Class_loss_avg_test = 0
                     sample_cnt = 0
-                    for images_X_test, labels_X_test, images_Y_test0, data_file_name in val_iter:
-                            if iteration2 >= opts.max_test_iters: break
+                    while iteration2 < opts.max_test_iters: 
+                            images_X_test, labels_X_test, images_Y_test0, data_file_name = next(dataloader.__iter__())
                             iteration2 += 1
                             labels_X_test = labels_X_test.cuda()
 

@@ -46,14 +46,14 @@ def main(opts,models):
     torch.cuda.empty_cache()
 
     # Create train and test dataloaders for images from the two domains X and Y
-    training_dataloader, val_dataloader, testing_dataloader = data_loader.lora_loader(opts)
+    training_dataloader = data_loader.lora_loader(opts)
     # Create checkpoint directories
 
     # Start training
     set_gpu(opts.free_gpu_id)
 
     # start training
-    models = end2end.training_loop(training_dataloader,val_dataloader, testing_dataloader,models, opts)
+    models = end2end.training_loop(training_dataloader,models, opts)
     return models
 
 if __name__ == "__main__":
@@ -64,7 +64,6 @@ if __name__ == "__main__":
     parser = config.create_parser()
     opts = parser.parse_args()
 
-    if opts.SpFD =='True': opts.fs =opts.fs // opts.stack_imgs
     opts.n_classes = 2 ** opts.sf
     opts.stft_nfft = opts.n_classes * opts.fs // opts.bw
     opts.stft_window = opts.n_classes // 2 * 4
@@ -74,17 +73,11 @@ if __name__ == "__main__":
     opts.checkpoint_dir += 'M'+str(opts.model_ver)
     create_dir(opts.checkpoint_dir)
     opts.cxtoy_conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
-    if opts.SpFD =='True': opts.cxtoy_conv_dim_lstm *= opts.stack_imgs 
 
     if len(opts.snr_list)<opts.stack_imgs: opts.snr_list = [opts.snr_list[0] for i in range(opts.stack_imgs)]
-    if opts.load_checkpoint_dir == '/data/djl':
-        opts.load_checkpoint_dir = opts.checkpoint_dir
-    if opts.data_dir == '/data/djl/data0306/data': opts.data_format = 0
-    elif opts.data_dir == '/data/djl/SpF102': opts.data_format = 1
-    elif '_76800' in opts.data_dir or '_125k_new' in opts.data_dir or '_125k_test' in opts.data_dir or '_125k_data' in opts.data_dir: opts.data_format = 2
-    elif opts.data_dir == '/data/djl/sf7-1b-out-upload': opts.data_format = 3
-    else: raise NotImplementedError
-    
+
+    #default checkpoint dir
+    if opts.load_checkpoint_dir == '/data/djl': opts.load_checkpoint_dir = opts.checkpoint_dir
 
     
     ##load model checkpoint
@@ -117,11 +110,11 @@ if __name__ == "__main__":
     else:
         mask_CNN = maskCNNModel(opts)
         if opts.cxtoy == 'True': C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
-    mask_CNN = nn.DataParallel(mask_CNN)
+    #mask_CNN = nn.DataParallel(mask_CNN)
     mask_CNN.cuda()
     models = [mask_CNN, ]
     if opts.cxtoy == 'True':
-        C_XtoY = nn.DataParallel(C_XtoY)
+        #C_XtoY = nn.DataParallel(C_XtoY)
         C_XtoY.cuda()
         models.append(C_XtoY)
     
