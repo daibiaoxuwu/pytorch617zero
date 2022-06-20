@@ -73,8 +73,7 @@ class lora_dataset(data.Dataset):
                 data_pers = []
                 for k in range(self.opts.stack_imgs):
                         snr = self.opts.snr_list[k]
-                        amplist = [31.6228,28.1838,25.1189,22.3872,19.9526,17.7828,15.8489,14.1254,12.5893,11.2202,10,8.9125,7.9433,7.0795,6.3096,5.6234,]
-                        amp = amplist[snr+30]
+                        amp = math.pow(0.1, snr/20)
                         noise =  torch.tensor(amp / math.sqrt(2) * np.random.randn(nsamp) + 1j * amp / math.sqrt(2) * np.random.randn(nsamp), dtype = torch.cfloat).cuda()
                         data = data_perY[k]
                         data = data_perY[k] + noise

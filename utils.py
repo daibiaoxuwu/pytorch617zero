@@ -21,22 +21,15 @@ def spec_to_network_input(x, opts):
     """Converts numpy to variable."""
     freq_size = opts.freq_size
     # trim
-    trim_size = freq_size // 2
+    trim_size = freq_size
     # up down 拼接
     y = torch.cat((x[:, -trim_size:, :], x[:, 0:trim_size, :]), 1)
-
-    if opts.flip_flat == 'True':
-        y2 = torch.zeros(y.shape,dtype=y.dtype)
-        for i in range(y.shape[1]):
-            for j in range(y.shape[2]):
-                y2[:,(i-j * round(y.shape[1]/(y.shape[2]//2*2)) )%y.shape[1],j] = y[:,i,j]
-        y = y2.cuda()
 
     y_abs = torch.abs(y)
     y_abs_max = torch.tensor(
         list(map(lambda x: torch.max(x), y_abs)))
     y_abs_max = to_var(torch.unsqueeze(torch.unsqueeze(y_abs_max, 1), 2))
-    y = torch.div(y, y_abs_max)*5
+    y = torch.div(y, y_abs_max)
     return y
 
 def spec_to_network_input2(x, opts):

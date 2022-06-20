@@ -75,6 +75,16 @@ if __name__ == "__main__":
     opts.cxtoy_conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
 
     if len(opts.snr_list)<opts.stack_imgs: opts.snr_list = [opts.snr_list[0] for i in range(opts.stack_imgs)]
+    
+    if opts.lr == -1:
+        opts.lr = 0.001
+        if min(opts.snr_list) < -15: opts.lr *= 0.3
+        if min(opts.snr_list) < -20: opts.lr /= 1.5
+    if opts.w_image == -1:
+        opts.w_image = 1
+        if min(opts.snr_list) < -15: opts.w_image *= 4
+        if min(opts.snr_list) < -20: opts.w_image *= 4
+
 
     #default checkpoint dir
     if opts.load_checkpoint_dir == '/data/djl': opts.load_checkpoint_dir = opts.checkpoint_dir
@@ -110,11 +120,11 @@ if __name__ == "__main__":
     else:
         mask_CNN = maskCNNModel(opts)
         if opts.cxtoy == 'True': C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
-    #mask_CNN = nn.DataParallel(mask_CNN)
+    mask_CNN = nn.DataParallel(mask_CNN)
     mask_CNN.cuda()
     models = [mask_CNN, ]
     if opts.cxtoy == 'True':
-        #C_XtoY = nn.DataParallel(C_XtoY)
+        C_XtoY = nn.DataParallel(C_XtoY)
         C_XtoY.cuda()
         models.append(C_XtoY)
     

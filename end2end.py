@@ -50,8 +50,8 @@ def merge_images(sources, targets, Y, test_right_case, opts):
     the first column.
     """
     _, _, h, w = sources[0].shape
-    row = int(np.sqrt(opts.batch_size))
-    column = math.ceil(opts.batch_size / row)
+    row = 1# int(np.sqrt(opts.batch_size))
+    column = 1# math.ceil(opts.batch_size / row)
     merged = np.zeros([opts.y_image_channel, row * h , column * w * opts.stack_imgs * 3])
     for stack_idx in range(opts.stack_imgs):
         for idx, (s, t, y, c) in enumerate(zip(sources[stack_idx], targets[stack_idx], Y[stack_idx], test_right_case)):
@@ -60,6 +60,7 @@ def merge_images(sources, targets, Y, test_right_case, opts):
             merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3)     * w:(j * 3 * opts.stack_imgs + 1 + stack_idx*3) * w,] = s
             merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3 + 1) * w:(j * 3 * opts.stack_imgs + 2 + stack_idx*3) * w,] = t
             merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3 + 2) * w:(j * 3 * opts.stack_imgs + 3 + stack_idx*3) * w,] = y
+            break
     merged = merged.transpose(1, 2, 0)
     newsize = ( merged.shape[1] ,merged.shape[1] * opts.stack_imgs )
     #return cv2.resize(merged, dsize=newsize)
@@ -78,7 +79,7 @@ def save_samples(iteration, fixed_Y, fixed_X, mask_CNN, test_right_case, name, o
     mergeda = merge_images(fixed_X, fake_Y, Y, test_right_case, opts)
 
     path = os.path.join(opts.checkpoint_dir,
-            'sample-{:06d}{:d}-Y{:s}.png'.format(iteration,opts.snr_list[0],name))
+            'sample-{:06d}-snr{:.1f}-Y{:s}.png'.format(iteration,opts.snr_list[0],name))
     merged = np.abs(mergeda[:, :, 0]+1j*mergeda[:, :, 1])
     merged = (merged - np.min(merged)) / (np.max(merged) - np.min(merged)) * 255
     merged = cv2.flip(merged, 0)
@@ -307,7 +308,7 @@ def training_loop(dataloader, models, opts):
 
                             if(sample_cnt==0 and  np.sum(test_right_case) < opts.batch_size  ):
                                 sample_cnt+=1
-                                print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
+                                #print(labels_X_test_estimated, labels_X_test,test_right_case.astype(np.int))
                                 save_samples(iteration+iteration2, images_Y_test_spectrum, images_X_test_spectrum, mask_CNN, test_right_case, 'val', opts)
 
                     error_matrix2 = error_matrix / error_matrix_count
