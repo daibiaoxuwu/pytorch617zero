@@ -21,7 +21,7 @@ def spec_to_network_input(x, opts):
     """Converts numpy to variable."""
     freq_size = opts.freq_size
     # trim
-    trim_size = freq_size
+    trim_size = freq_size // 2
     # up down 拼接
     y = torch.cat((x[:, -trim_size:, :], x[:, 0:trim_size, :]), 1)
 

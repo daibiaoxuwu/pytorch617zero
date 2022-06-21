@@ -30,7 +30,7 @@ class classificationHybridModel3(nn.Module):
         self.out_size = 1 
         self.conv1 = nn.Conv2d(2, 16, (3, 3), stride=(2, 2), padding=(1, 1)) 
         self.pool1 = nn.MaxPool2d((2, 2), stride=(2, 2)) 
-        self.dense = nn.Linear(conv_dim_lstm * 4 * 2, conv_dim_out * 2) 
+        self.dense = nn.Linear(conv_dim_lstm * 4, conv_dim_out * 2) 
         self.fcn1 = nn.Linear(conv_dim_out * 2, conv_dim_out) 
         self.fcn2 = nn.Linear(conv_dim_out, conv_dim_out) 
         self.softmax = nn.Softmax(dim=1) 
@@ -102,8 +102,8 @@ class maskCNNModel3(nn.Module):
             nn.BatchNorm2d(8))
 
         #self.lstm = nn.LSTM( opts.conv_dim_lstm, opts.lstm_dim, batch_first=True, bidirectional=True)
-        self.fc1 = nn.Linear(opts.conv_dim_lstm*2 , opts.fc1_dim)
-        self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.out_channel * 2)
+        self.fc1 = nn.Linear(opts.conv_dim_lstm , opts.fc1_dim)
+        self.fc2 = nn.Linear(opts.fc1_dim, opts.freq_size * opts.out_channel)
         self.final = nn.Tanh()
 
     def merge_images(self, sources, opts):
