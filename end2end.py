@@ -145,7 +145,7 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
     return G_Image_loss, G_Class_loss, G_Acc
 
 
-def training_loop(training_dataloader,val_dataloader,testing_dataloader, models, opts):
+def training_loop(training_dataloader,testing_dataloader, models, opts):
     """Runs the training loop.
         * Saves checkpoint every opts.checkpoint_every iterations
     """

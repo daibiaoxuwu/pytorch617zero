@@ -18,19 +18,9 @@ from scipy.ndimage.filters import uniform_filter1d
 class lora_dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
 
-    def __init__(self, opts, folders):
-        print(folders)
+    def __init__(self, opts, files):
         self.opts = opts
-        self.initFlag = 0
-
-        assert(re.search(r"SF\d+_125K", opts.data_dir))
-        self.files = dict(zip(list(range(opts.n_classes)), [[] for i in range(opts.n_classes)]))
-
-        for ff in folders:
-            for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')):
-                symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes
-                self.files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f))
-        # print([i for i in range(opts.n_classes) if len(self.files[i])>opts.stack_imgs])
+        self.files = files
 
     def __len__(self):
         return np.iinfo(np.int64).max
@@ -78,7 +68,8 @@ class lora_dataset(data.Dataset):
                         A = uniform_filter1d(abs(datain),size=mwin)
                         datain = datain[A >= max(A)/2]
                         amp_sig = torch.mean(torch.abs(torch.tensor(datain)))
-                        assert(abs(amp_sig-0.04)<0.02)
+                        #print(amp_sig)
+                        #assert(abs(amp_sig-0.04)<0.03)
                         
                         amp = amp_sig*math.pow(0.1, snr/20)
                         nsamp = self.opts.n_classes * self.opts.fs // self.opts.bw
@@ -104,10 +95,24 @@ class lora_dataset(data.Dataset):
 
 
 # receive the csi feature map derived by the ray model as the input
-def lora_loader(opts, folders):
-    training_dataset = lora_dataset(opts, folders)
+def lora_loader(opts):
+    files = dict(zip(list(range(opts.n_classes)), [[] for i in range(opts.n_classes)]))
+
+    assert(re.search(r"SF\d+_125K", opts.data_dir))
+    for ff in os.listdir(opts.data_dir):
+        for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')):
+            symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes
+            files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f))
+    for i in files.keys():
+        files[i].sort(key = lambda x: int(os.path.basename(x).split('_')[0]))
+    splitpos = [ opts.stack_imgs if len(files[i]) >= 2*opts.stack_imgs else 0 for i in range(opts.n_classes)]
+    
+
+    training_dataset = lora_dataset(opts, dict(zip(list(range(opts.n_classes)), [files[i][splitpos[i]:] for i in range(opts.n_classes)])) )
     training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers,  drop_last=True)
-    return training_dloader
+    testing_dataset = lora_dataset(opts, dict(zip(list(range(opts.n_classes)), [files[i][:splitpos[i]] for i in range(opts.n_classes)])) )
+    testing_dloader = DataLoader(dataset=testing_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers,  drop_last=True)
+    return training_dloader, testing_dloader
 
 
 

@@ -27,6 +27,7 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     state_dict = torch.load(maskCNN_path, map_location=lambda storage, loc: storage)
     for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
     #state_dict['conv2.1.weight']= torch.cat((state_dict['conv2.1.weight'], torch.zeros(64,258-130,5,5)),1)
+    #state_dict['fc1.weight']= state_dict['fc1.weight'][:, :4096]
     #state_dict.pop('fc2.weight')
     #state_dict.pop('fc2.bias')
     maskCNN.load_state_dict(state_dict)#, strict=False)
@@ -49,18 +50,14 @@ def main(opts,models):
     torch.cuda.empty_cache()
 
     # Create train and test dataloaders for images from the two domains X and Y
-    folders = os.listdir(opts.data_dir)
-    
-    training_dataloader = data_loader.lora_loader(opts, folders[:int(len(folders)*0.8-2)])
-    val_dataloader = data_loader.lora_loader(opts, folders[int(len(folders)*0.8-2):int(len(folders)*0.9-1)])
-    testing_dataloader = data_loader.lora_loader(opts, folders[int(len(folders)*0.9-1):])
+    training_dataloader, testing_dataloader = data_loader.lora_loader(opts)
     # Create checkpoint directories
 
     # Start training
     set_gpu(opts.free_gpu_id)
 
     # start training
-    models = end2end.training_loop(training_dataloader,val_dataloader,testing_dataloader,models, opts)
+    models = end2end.training_loop(training_dataloader,testing_dataloader,models, opts)
     return models
 
 if __name__ == "__main__":
@@ -74,8 +71,8 @@ if __name__ == "__main__":
     opts.n_classes = 2 ** opts.sf
     opts.stft_nfft = opts.n_classes * opts.fs // opts.bw
 
-    opts.stft_window = opts.n_classes // 2
-    opts.stft_overlap = opts.stft_window // 2
+    opts.stft_window = opts.n_classes // 2 * 4
+    opts.stft_overlap = opts.stft_window // 2 // 4
     opts.conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
     opts.freq_size = opts.n_classes
 
