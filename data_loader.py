@@ -12,70 +12,77 @@ import cv2
 from scipy.signal import chirp, spectrogram
 import matplotlib.pyplot as plt
 import math
+import re
+from scipy.ndimage.filters import uniform_filter1d
 
 class lora_dataset(data.Dataset):
     'Characterizes a dataset for PyTorch'
 
-    def __init__(self, opts ):
+    def __init__(self, opts, folders):
+        print(folders)
         self.opts = opts
         self.initFlag = 0
 
+        assert(re.search(r"SF\d+_125K", opts.data_dir))
+        self.files = dict(zip(list(range(opts.n_classes)), [[] for i in range(opts.n_classes)]))
+
+        for ff in folders:
+            for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')):
+                symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes
+                self.files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f))
+        # print([i for i in range(opts.n_classes) if len(self.files[i])>opts.stack_imgs])
+
     def __len__(self):
         return np.iinfo(np.int64).max
+
+    def load_img(self, path):
+        fid = open(path, 'rb')
+        nelements = self.opts.n_classes * self.opts.fs // self.opts.bw
+        lora_img = np.fromfile(fid, np.float32, nelements * 2)
+        lora_img = lora_img[::2] + lora_img[1::2]*1j
+        return torch.tensor(lora_img)
 
     def __getitem__(self, index0):
             try:
                 data_perY = []
                 symbol_index = random.randint(0,self.opts.n_classes-1)
+                while(len(self.files[symbol_index]) < self.opts.stack_imgs): 
+                    symbol_index = random.randint(0,self.opts.n_classes-1)
+                fs = random.sample(self.files[symbol_index], self.opts.stack_imgs)
                 for k in range(self.opts.stack_imgs):
-                    nsamp = int(self.opts.fs * self.opts.n_classes / self.opts.bw)
-                    t = np.linspace(0, nsamp / self.opts.fs, nsamp)
-                    phi = random.uniform(-90, 90)
-                    chirpI = chirp(t, f0=-self.opts.bw/2, f1=self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw , method='linear', phi=phi+90)
-                    chirpQ = chirp(t, f0=-self.opts.bw/2, f1=self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw, method='linear', phi=phi)
-                    mchirp0 = chirpI+1j*chirpQ
-                    mchirp = np.tile(mchirp0, 2)
-
-                    '''
-                    for symbol_index in range(256):
-                        time_shift = round((self.opts.n_classes - symbol_index) / self.opts.n_classes * nsamp)
-                        chirp_raw = mchirp[time_shift:time_shift+nsamp]
-
-                        chirpI1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw , method='linear', phi=90)
-                        chirpQ1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw, method='linear', phi=0)
-                        dechirp = chirpI1+1j*chirpQ1
-
-                        print(time_shift, nsamp, mchirp.shape)
-                        data_perY[0] = torch.tensor(chirp_raw*1e-6)
-
-                        images_X_SpF_spectrum_raw = torch.stft(input= torch.tensor(chirp_raw * dechirp), n_fft=self.opts.stft_nfft, 
-                                        hop_length=self.opts.stft_overlap // self.opts.stack_imgs, win_length=self.opts.stft_window // self.opts.stack_imgs, 
-                                        pad_mode='constant') 
-                        freq_size = self.opts.freq_size 
-                        # trim 
-                        trim_size = freq_size // 2 
-                        # up down 拼接 
-                        # images_X_SpF_spectrum_raw = torch.cat((images_X_SpF_spectrum_raw[-trim_size:, :], images_X_SpF_spectrum_raw[0:trim_size, :]), 0) 
-                        print(images_X_SpF_spectrum_raw.shape,'images_X_SpF_spectrum_raw') 
-
-
-                        merged = to_data(np.abs(images_X_SpF_spectrum_raw)) 
-                        merged = (merged - np.min(merged)) / (np.max(merged) - np.min(merged)) * 255 
-                        merged = np.squeeze(merged) 
-                        merged = cv2.flip(merged, 0) 
-                        cv2.imwrite('SpFData'+str(symbol_index)+'.png', merged) 
-                    sys.exit(1)'''
-
-                    time_shift = round((self.opts.n_classes - symbol_index) / self.opts.n_classes * nsamp)
-                    chirp_raw = mchirp[time_shift:time_shift+nsamp]
-                    data_perY.append( torch.tensor(chirp_raw, dtype = torch.cfloat).cuda())
+                    chirp_raw = self.load_img(fs[k]).cuda()
+                    data_perY.append(chirp_raw)
 
                 data_pers = []
                 for k in range(self.opts.stack_imgs):
                         snr = self.opts.snr_list[k]
-                        amp = math.pow(0.1, snr/20)
+
+                        nsamp = int(self.opts.fs * self.opts.n_classes / self.opts.bw)
+                        t = np.linspace(0, nsamp / self.opts.fs, nsamp)
+                        chirpI1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw , method='linear', phi=90)
+                        chirpQ1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw, method='linear', phi=0)
+                        chirp_down = chirpI1+1j*chirpQ1
+                        
+                        chirp_raw = data_perY[k]
+                        '''
+                        chirp_dechirp = chirp_raw .* chirp_down
+                        chirp_fft_raw =abs(np.fft.fft(chirp_dechirp, nsamp*10))
+                        align_win_len = len(chirp_fft_raw) / (self.opts.fs/self.opts.bw);
+
+                        chirp_fft_overlap=chirp_fft_raw[:align_win_len]+chirp_fft_raw[-align_win_len:]
+                        chirp_peak_overlap=abs(chirp_fft_overlap)
+                        [pk_height_overlap,pk_index_overlap]=max(chirp_peak_overlap)'''
+
+                        mwin = nsamp//2;
+                        datain = to_data(chirp_raw)
+                        A = uniform_filter1d(abs(datain),size=mwin)
+                        datain = datain[A >= max(A)/2]
+                        amp_sig = torch.mean(torch.abs(torch.tensor(datain)))
+                        assert(abs(amp_sig-0.04)<0.02)
+                        
+                        amp = amp_sig*math.pow(0.1, snr/20)
+                        nsamp = self.opts.n_classes * self.opts.fs // self.opts.bw
                         noise =  torch.tensor(amp / math.sqrt(2) * np.random.randn(nsamp) + 1j * amp / math.sqrt(2) * np.random.randn(nsamp), dtype = torch.cfloat).cuda()
-                        data = data_perY[k]
                         data = data_perY[k] + noise
 
                         data_pers.append(data)
@@ -90,18 +97,15 @@ class lora_dataset(data.Dataset):
 
                 return data_pers, label_per, data_perY, data_file_name
             except ValueError as e:
-                print(e, self.data_lists[index % len(self.data_lists)])
-                raise e
+                print(e)
             except OSError as e:
-                print(e, self.data_lists[index % len(self.data_lists)])
-                raise e
+                print(e)
 
 
 
 # receive the csi feature map derived by the ray model as the input
-def lora_loader(opts):
-    training_dataset = lora_dataset(opts )
-
+def lora_loader(opts, folders):
+    training_dataset = lora_dataset(opts, folders)
     training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers,  drop_last=True)
     return training_dloader
 

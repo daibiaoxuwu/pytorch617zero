@@ -106,8 +106,7 @@ class maskCNNModel0(nn.Module):
         out = self.fc1(out)
         out = F.relu(out)
         out = self.fc3(out)
-
-        out = out.view(out.size(0), out.size(1), self.opts.y_image_channel * self.opts.stack_imgs, -1)
+        out = out.view(out.size(0), out.size(1), self.opts.y_image_channel, -1)
         out = torch.tanh(out) #sigmoid or tanh
         out = out.transpose(1, 2).contiguous()
         out = out.transpose(2, 3).contiguous()

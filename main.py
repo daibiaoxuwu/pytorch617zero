@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 import sys
 #from model_components0 import maskCNNModel0, classificationHybridModel0
-from model_components00 import maskCNNModel0, classificationHybridModel0
+from model_components0 import maskCNNModel0, classificationHybridModel0
 from model_components1 import maskCNNModel1, classificationHybridModel1
 from model_components2 import maskCNNModel2, classificationHybridModel2
 from model_components3 import maskCNNModel3, classificationHybridModel3
@@ -32,7 +32,7 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     maskCNN.load_state_dict(state_dict)#, strict=False)
 
     if opts.cxtoy == 'True':
-        C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.cxtoy_conv_dim_lstm)
+        C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.conv_dim_lstm)
         if opts.load_cxtoy == 'True' and os.path.exists(C_XtoY_path):
             state_dict = torch.load( C_XtoY_path, map_location=lambda storage, loc: storage)
             for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
@@ -43,17 +43,24 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
 
 
 def main(opts,models):
+    print('================TESTING VERSION================')
+    print('================TESTING VERSION================')
+    print('================TESTING VERSION================')
     torch.cuda.empty_cache()
 
     # Create train and test dataloaders for images from the two domains X and Y
-    training_dataloader = data_loader.lora_loader(opts)
+    folders = os.listdir(opts.data_dir)
+    
+    training_dataloader = data_loader.lora_loader(opts, folders[:int(len(folders)*0.8-2)])
+    val_dataloader = data_loader.lora_loader(opts, folders[int(len(folders)*0.8-2):int(len(folders)*0.9-1)])
+    testing_dataloader = data_loader.lora_loader(opts, folders[int(len(folders)*0.9-1):])
     # Create checkpoint directories
 
     # Start training
     set_gpu(opts.free_gpu_id)
 
     # start training
-    models = end2end.training_loop(training_dataloader,models, opts)
+    models = end2end.training_loop(training_dataloader,val_dataloader,testing_dataloader,models, opts)
     return models
 
 if __name__ == "__main__":
@@ -66,13 +73,14 @@ if __name__ == "__main__":
 
     opts.n_classes = 2 ** opts.sf
     opts.stft_nfft = opts.n_classes * opts.fs // opts.bw
-    opts.stft_window = opts.n_classes // 2 * 4
-    opts.stft_overlap = opts.stft_window // 2 // 4
-    opts.conv_dim_lstm = opts.n_classes * 8
+
+    opts.stft_window = opts.n_classes // 2
+    opts.stft_overlap = opts.stft_window // 2
+    opts.conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
     opts.freq_size = opts.n_classes
+
     opts.checkpoint_dir += 'M'+str(opts.model_ver)
     create_dir(opts.checkpoint_dir)
-    opts.cxtoy_conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
 
     if len(opts.snr_list)<opts.stack_imgs: opts.snr_list = [opts.snr_list[0] for i in range(opts.stack_imgs)]
     
@@ -92,8 +100,8 @@ if __name__ == "__main__":
     
     ##load model checkpoint
     if opts.model_ver == 0:
-        maskCNNModel = maskCNNModel00
-        classificationHybridModel = classificationHybridModel00
+        maskCNNModel = maskCNNModel0
+        classificationHybridModel = classificationHybridModel0
     elif opts.model_ver == 1:
         maskCNNModel = maskCNNModel1
         classificationHybridModel = classificationHybridModel1
@@ -119,7 +127,7 @@ if __name__ == "__main__":
         if opts.cxtoy == 'True': C_XtoY = models[1]
     else:
         mask_CNN = maskCNNModel(opts)
-        if opts.cxtoy == 'True': C_XtoY = classificationHybridModel(conv_dim_in=opts.y_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.cxtoy_conv_dim_lstm)
+        if opts.cxtoy == 'True': C_XtoY = classificationHybridModel(conv_dim_in=opts.out_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.conv_dim_lstm)
     mask_CNN = nn.DataParallel(mask_CNN)
     mask_CNN.cuda()
     models = [mask_CNN, ]
@@ -132,7 +140,7 @@ if __name__ == "__main__":
     opts.logfile2 = os.path.join(opts.checkpoint_dir, 'logfile2-djl-train.txt')
     strlist = print_opts(opts)
     with open(opts.logfile,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'\n'.join(strlist)+'\n')
-    with open(opts.logfile2,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'\n'.join(strlist)+'\n')
+    with open(opts.logfile2,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' snr_list ' +str(opts.snr_list)+' stack '+str(opts.stack_imgs)+' ')
     opts.init_train_iter = opts.load_iters
     models = main(opts,models)
     opts.init_train_iter += opts.train_iters
