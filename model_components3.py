@@ -152,6 +152,13 @@ class maskCNNModel3(nn.Module):
             outavg = torch.mean(outss,1)
             outmax = torch.max(outss,1)[0]-0.01*outavg
             outmin = torch.min(outss,1)[0]+0.01*outavg
+            '''
+            out_abs = torch.mean(torch.stack([torch.abs(out[:,0]+1j*out[:,1]) for out in outs],0),0)
+            outavg = [out * (out_abs / torch.abs(out[:,0]+1j*out[:,1])).unsqueeze(1).repeat(1, 2, 1, 1) for out in outs]
+            out_max = torch.max(torch.stack([torch.abs(out[:,0]+1j*out[:,1]) for out in outs],0),0)[0]
+            outmax = [out * (out_abs / torch.abs(out[:,0]+1j*out[:,1])).unsqueeze(1).repeat(1, 2, 1, 1) for out in outs]-0.01*outavg
+            out_min = torch.min(torch.stack([torch.abs(out[:,0]+1j*out[:,1]) for out in outs],0),0)[0]
+            outmin = [out * (out_abs / torch.abs(out[:,0]+1j*out[:,1])).unsqueeze(1).repeat(1, 2, 1, 1) for out in outs]+0.01*outavg'''
 
             outs2 = []
             for idx in range(len(xs)):

@@ -128,18 +128,19 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
     else: fake_Y_spectrums = mask_CNN(images_X_spectrum)
 
     if opts.avg_flag == 'True':
-        fake_Y_spectrum = torch.mean(torch.stack(fake_Y_spectrums,0),0)
-        G_Image_loss, G_Class_loss, G_Acc = work2(fake_Y_spectrum, images_Y_spectrum[0],labels_X,C_XtoY, opts)
-    else:
-        G_Y_loss = 0
-        G_Image_loss = 0
-        G_Class_loss = 0
-        G_Acc = 0
-        for i in range(opts.stack_imgs):
-            G_Image_loss_img, G_Class_loss_img, G_Acc_img = work2(fake_Y_spectrums[i], images_Y_spectrum[i],labels_X,C_XtoY, opts)
-            G_Image_loss += G_Image_loss_img / opts.stack_imgs
-            G_Class_loss += G_Class_loss_img / opts.stack_imgs
-            G_Acc += G_Acc_img / opts.stack_imgs
+        fake_Y_spectrum_abs = torch.mean(torch.stack([torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]) for fake_Y_spectrum in fake_Y_spectrums],0),0)
+
+        fake_Y_spectrums = [fake_Y_spectrum * (fake_Y_spectrum_abs / torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1])).unsqueeze(1).repeat(1, 2, 1, 1) for fake_Y_spectrum in fake_Y_spectrums]
+
+    G_Y_loss = 0
+    G_Image_loss = 0
+    G_Class_loss = 0
+    G_Acc = 0
+    for i in range(opts.stack_imgs):
+        G_Image_loss_img, G_Class_loss_img, G_Acc_img = work2(fake_Y_spectrums[i], images_Y_spectrum[i],labels_X,C_XtoY, opts)
+        G_Image_loss += G_Image_loss_img / opts.stack_imgs
+        G_Class_loss += G_Class_loss_img / opts.stack_imgs
+        G_Acc += G_Acc_img / opts.stack_imgs
     if opts.iteration % opts.test_step == 1: 
         save_samples(opts.iteration, images_Y_spectrum, images_X_spectrum, fake_Y_spectrums, 'val', opts)
     return G_Image_loss, G_Class_loss, G_Acc

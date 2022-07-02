@@ -68,11 +68,15 @@ if __name__ == "__main__":
     parser = config.create_parser()
     opts = parser.parse_args()
 
+    if opts.sf == -1:
+        opts.sf = int(opts.checkpoint_dir.split('-')[-1])
+        opts.data_dir='/data/djl/SF'+str(opts.sf)+'_125K'
+
     opts.n_classes = 2 ** opts.sf
     opts.stft_nfft = opts.n_classes * opts.fs // opts.bw
 
-    opts.stft_window = opts.n_classes // 2 * 4
-    opts.stft_overlap = opts.stft_window // 2 // 4
+    opts.stft_window = opts.n_classes // 2 * opts.stft_mod
+    opts.stft_overlap = opts.stft_window // 2 // opts.stft_mod
     opts.conv_dim_lstm = opts.n_classes * opts.fs // opts.bw
     opts.freq_size = opts.n_classes
 

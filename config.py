@@ -19,7 +19,7 @@ def create_parser():
     parser.add_argument('--conv_padding_size', type=int, default=1)
     parser.add_argument('--lstm_dim', type=int, default=50)  # For mask_CNN model
     parser.add_argument('--fc1_dim', type=int, default=600)  # For mask_CNN model
-    parser.add_argument('--sf', type=int, default=7, help='The spreading factor.')
+    parser.add_argument('--sf', type=int, default=-1, help='The spreading factor.')
     parser.add_argument('--bw', type=int, default=125000, help='The bandwidth.')
     parser.add_argument('--fs', type=int, default=1000000, help='The sampling rate.')
     parser.add_argument( '--server', action='store_true', default=False, help='Choose whether to include the cycle consistency term in the loss.')
@@ -28,7 +28,7 @@ def create_parser():
     parser.add_argument( '--load_iters', type=int, default=-1, help= 'The number of training iterations to run (you can Ctrl-C out earlier if you want).')
     parser.add_argument('--batch_size', type=int, default=16, help='The number of images in a batch.')
     parser.add_argument( '--num_workers', type=int, default=0, help='The number of threads to use for the DataLoader.')
-    parser.add_argument('--lr', type=float, default=-1, help='The learning rate (default 0.0003)') 
+    parser.add_argument('--lr', type=float, default=0.0002, help='The learning rate (default 0.0003)') 
     parser.add_argument('--sorting_type', type=int, default=4, choices=[4], help='The index for the selected domain.')
     parser.add_argument('--w_image', type=float, default=-1, help='The scaling factor for the imaging loss')
     parser.add_argument('--beta1', type=float, default=0.5)
@@ -44,7 +44,7 @@ def create_parser():
     parser.add_argument('--load', type=str, default='yes')
     parser.add_argument('--log_step', type=int, default=100)
     parser.add_argument('--test_step', type=int, default=500)
-    parser.add_argument( '--train_iters', type=int, default=1000000, help= 'The number of training iterations to run (you can Ctrl-C out earlier if you want).')
+    parser.add_argument( '--train_iters', type=int, default=10000, help= 'The number of training iterations to run (you can Ctrl-C out earlier if you want).')
     parser.add_argument('--sample_every', type=int, default=10000)
     parser.add_argument('--checkpoint_every', type=int, default=500)
     parser.add_argument('--load_checkpoint_dir', type=str, default='/data/djl')
@@ -57,7 +57,7 @@ def create_parser():
     parser.add_argument('--max_test_iters', type=int, default=100)
     parser.add_argument('--flip_flat', type=str, default='False')
     parser.add_argument('--cut_data_by', type=int, default=1)
-    parser.add_argument('--terminate_acc', type=float, default=0.99)
+    parser.add_argument('--terminate_acc', type=float, default=0.98)
     parser.add_argument('--same_img', type=str, default='False')
     parser.add_argument('--image_loss_abs', type=str, default='False')
     parser.add_argument('--random_idx', type=str, default='True')
@@ -67,11 +67,12 @@ def create_parser():
     parser.add_argument('--cxtoy_each', type=str, default='True')
     parser.add_argument('--dechirp', type=str, default='True')
     parser.add_argument('--line', type=str, default='False')
-    parser.add_argument('--out_channel', type=int, default=1)
+    parser.add_argument('--out_channel', type=int, default=2)
+    parser.add_argument('--stft_mod', type=int, default=1)
     parser.add_argument('--cxtoy', type=str, default='True')
     parser.add_argument('--w_line', type=float, default=1)
     parser.add_argument('--load_cxtoy', type=str, default='True')
-    parser.add_argument('--avg_flag', type=str, default='True')
+    parser.add_argument('--avg_flag', type=str, default='False')
     
 
     return parser
