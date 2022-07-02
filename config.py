@@ -73,6 +73,8 @@ def create_parser():
     parser.add_argument('--w_line', type=float, default=1)
     parser.add_argument('--load_cxtoy', type=str, default='True')
     parser.add_argument('--avg_flag', type=str, default='False')
+    parser.add_argument('--layer_cnt', type=int, default=2)
+    
     
 
     return parser
