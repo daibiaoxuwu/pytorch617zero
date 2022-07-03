@@ -129,11 +129,11 @@ if __name__ == "__main__":
     else:
         mask_CNN = maskCNNModel(opts)
         if opts.cxtoy == 'True': C_XtoY = classificationHybridModel(conv_dim_in=opts.out_channel, conv_dim_out=opts.n_classes, conv_dim_lstm= opts.conv_dim_lstm)
-    #mask_CNN = nn.DataParallel(mask_CNN)
+    mask_CNN = nn.DataParallel(mask_CNN)
     mask_CNN.cuda()
     models = [mask_CNN, ]
     if opts.cxtoy == 'True':
-        #C_XtoY = nn.DataParallel(C_XtoY)
+        C_XtoY = nn.DataParallel(C_XtoY)
         C_XtoY.cuda()
         models.append(C_XtoY)
     

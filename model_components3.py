@@ -74,7 +74,7 @@ class maskCNNModel3(nn.Module):
             self.conv2.append( nn.Sequential(
 
                 # cnn3
-                nn.Conv2d(256*3+2, 64, kernel_size=(1, 1), dilation=(1, 1)),
+                nn.Conv2d(256*4+2, 64, kernel_size=(1, 1), dilation=(1, 1)),
                 nn.BatchNorm2d(64), nn.LeakyReLU(),
 
                 nn.ZeroPad2d(1),
@@ -163,7 +163,7 @@ class maskCNNModel3(nn.Module):
             outs2 = []
             for idx in range(len(xs)):
                 # Distribute
-                x = torch.cat((outs[idx],outmax,outmin,xsnew[idx]),1)
+                x = torch.cat((outs[idx],outs[(idx+1)%len(outs)],outs[(idx+2)%len(outs)],outs[(idx+3)%len(outs)],xsnew[idx]),1)
 
                 # CNN_2
                 out1 = self.conv2[i](x)
