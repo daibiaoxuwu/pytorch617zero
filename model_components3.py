@@ -101,13 +101,13 @@ class maskCNNModel3(nn.Module):
         self.conv1 = ComplexConv2d(1, 256, 5, padding=2)
         self.bn2d1 = ComplexBatchNorm2d(256)
 
-        self.conv21a = ComplexConv2d(256*2+1, 64, 1)
+        self.conv21a = ComplexConv2d(256, 64, 1)
         self.bn2d21a = ComplexBatchNorm2d(64)
         self.conv21b = ComplexConv2d(64, 64, 3, padding=1)
         self.bn2d21b = ComplexBatchNorm2d(64)
         self.conv21c = ComplexConv2d(64, 256, 1)
         self.bn2d21c = ComplexBatchNorm2d(256)
-        self.conv22a = ComplexConv2d(256*2+1, 64, 1)
+        self.conv22a = ComplexConv2d(256, 64, 1)
         self.bn2d22a = ComplexBatchNorm2d(64)
         self.conv22b = ComplexConv2d(64, 64, 3, padding=1)
         self.bn2d22b = ComplexBatchNorm2d(64)
@@ -142,10 +142,12 @@ class maskCNNModel3(nn.Module):
         out_min = torch.min(torch.stack([torch.abs(out) for out in outs],0),0)[0]
         outmin = [out * (out_min / torch.abs(out)) for out in outs]
         '''
+        '''
         out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0]
         outmax = [out * (out_max / (torch.abs(out)+1e-6)) for out in outs]
 
         outs = [torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)]
+        '''
 
         outs = [self.conv21a(x) for x in outs]
         outs = [self.bn2d21a(x) for x in outs]
@@ -157,10 +159,12 @@ class maskCNNModel3(nn.Module):
         outs = [self.bn2d21c(x) for x in outs]
         outs = [complex_relu(x) for x in outs]
 
+        '''
         out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0]
         outmax = [out * (out_max /  (torch.abs(out)+1e-6)) for out in outs]
 
         outs = [torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)]
+        '''
 
         outs = [self.conv22a(x) for x in outs]
         outs = [self.bn2d22a(x) for x in outs]

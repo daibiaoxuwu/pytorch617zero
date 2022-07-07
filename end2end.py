@@ -162,11 +162,7 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
         images_Y_spectrum_raw = spec_to_network_input(images_Y_spectrum_raw, opts)
         images_Y_spectrum.append(images_Y_spectrum_raw)
     
-    if opts.model_ver == 0:
-        raise NotImplementedError
-        fake_Y_spectrums = [mask_CNN(i) for i in images_X_spectrum]
-    else:
-        fake_Y_spectrums = mask_CNN(images_X_spectrum)
+    fake_Y_spectrums = [mask_CNN([i,])[0] for i in images_X_spectrum] #!!!!!!!
 
     if opts.avg_flag == 'True':
         fake_Y_spectrum_abs = torch.mean(torch.stack([torch.abs(fake_Y_spectrum) for fake_Y_spectrum in fake_Y_spectrums],0),0)
