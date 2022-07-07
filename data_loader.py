@@ -46,14 +46,19 @@ class lora_dataset(data.Dataset):
                 data_pers = []
                 for k in range(self.opts.stack_imgs):
                         snr = self.opts.snr_list[k]
-
                         nsamp = int(self.opts.fs * self.opts.n_classes / self.opts.bw)
+                        '''
                         t = np.linspace(0, nsamp / self.opts.fs, nsamp)
                         chirpI1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw , method='linear', phi=90)
                         chirpQ1 = chirp(t, f0=self.opts.bw/2, f1=-self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw, method='linear', phi=0)
-                        chirp_down = chirpI1+1j*chirpQ1
+                        chirp_down = chirpI1+1j*chirpQ1'''
                         
                         chirp_raw = data_perY[k]
+
+
+
+
+
                         '''
                         chirp_dechirp = chirp_raw .* chirp_down
                         chirp_fft_raw =abs(np.fft.fft(chirp_dechirp, nsamp*10))

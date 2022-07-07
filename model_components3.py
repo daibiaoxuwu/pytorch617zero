@@ -14,6 +14,7 @@ import sys
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear
 from complexPyTorch.complexFunctions import complex_relu, complex_max_pool2d
 
+from torch.nn.functional import relu, max_pool2d
 def norm(y):
     for i in range(y.shape[1]):
         y_abs = torch.abs(y[:,i])
@@ -31,7 +32,34 @@ def complex_dropout2d(input, p=0.5, training=True):
     mask=mask.to(device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'))
     mask.type(input.dtype)
     return mask*input
-
+def _retrieve_elements_from_indices(tensor, indices):
+    flattened_tensor = tensor.flatten(start_dim=-2)
+    output = flattened_tensor.gather(dim=-1, index=indices.flatten(start_dim=-2)).view_as(indices)
+    return output
+def complex_max_pool2d(input,kernel_size, stride=None, padding=0,
+                                dilation=1, ceil_mode=False, return_indices=False):
+    '''
+    Perform complex max pooling by selecting on the absolute value on the complex values.
+    '''
+    absolute_value, indices =  max_pool2d(
+                               input.abs(), 
+                               kernel_size = kernel_size, 
+                               stride = stride, 
+                               padding = padding, 
+                               dilation = dilation,
+                               ceil_mode = ceil_mode, 
+                               return_indices = True
+                            )
+    # performs the selection on the absolute values
+    absolute_value = absolute_value.type(torch.complex64)
+    # retrieve the corresonding phase value using the indices
+    # unfortunately, the derivative for 'angle' is not implemented
+    abss = torch.abs(input)+1e-6
+    angle = input / abss
+    
+    # get only the phase values selected by max pool
+    angle = _retrieve_elements_from_indices(angle, indices)
+    return absolute_value * angle
 class classificationHybridModel3(nn.Module):
     """Defines the architecture of the discriminator network.
        Note: Both discriminators D_X and D_Y have the same architecture in this assignment.
@@ -115,7 +143,7 @@ class maskCNNModel3(nn.Module):
         outmin = [out * (out_min / torch.abs(out)) for out in outs]
         '''
         out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0]
-        outmax = [out * (out_max / torch.abs(out)) for out in outs]
+        outmax = [out * (out_max / (torch.abs(out)+1e-6)) for out in outs]
 
         outs = [torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)]
 
@@ -130,7 +158,7 @@ class maskCNNModel3(nn.Module):
         outs = [complex_relu(x) for x in outs]
 
         out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0]
-        outmax = [out * (out_max / torch.abs(out)) for out in outs]
+        outmax = [out * (out_max /  (torch.abs(out)+1e-6)) for out in outs]
 
         outs = [torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)]
 

@@ -17,6 +17,10 @@ from model_components2 import maskCNNModel2, classificationHybridModel2
 from model_components3 import maskCNNModel3, classificationHybridModel3
 from utils import *
 
+import random
+from datetime import datetime
+random.seed(datetime.now())
+
 def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     maskCNN_path = os.path.join(opts.load_checkpoint_dir, str(opts.load_iters) + '_maskCNN.pkl')
 
