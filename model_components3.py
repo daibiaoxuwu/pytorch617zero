@@ -118,11 +118,11 @@ class maskCNNModel3(nn.Module):
         self.bn2d3a = ComplexBatchNorm2d(64)
         self.conv3b = ComplexConv2d(64, 64, 5, padding=2)
         self.bn2d3b = ComplexBatchNorm2d(64)
-        self.conv3c = ComplexConv2d(64, 8, 1)
-        self.bn2d3c = ComplexBatchNorm2d(8)
+        self.conv3c = ComplexConv2d(64, 1, 5, padding=2)
+        self.bn2d3c = ComplexBatchNorm2d(1)
 
-        self.fc1 = ComplexLinear(opts.conv_dim_lstm , opts.fc1_dim)
-        self.fc2 = ComplexLinear(opts.fc1_dim, opts.freq_size)
+        #self.fc1 = ComplexLinear(opts.conv_dim_lstm , opts.fc1_dim)
+        #self.fc2 = ComplexLinear(opts.fc1_dim, opts.freq_size)
 
     def forward(self, xs):
 
@@ -186,7 +186,9 @@ class maskCNNModel3(nn.Module):
         outs = [self.conv3c(x) for x in outs]
         outs = [self.bn2d3c(x) for x in outs]
         outs = [complex_relu(x) for x in outs]
+        outs = [x.transpose(2, 3).contiguous() for x in outs]
 
+        '''
         outs = [x.transpose(1, 2) for x in outs]
         outs = [x.reshape(x.size(0), x.size(1), -1) for x in outs]
         outs = [self.fc1(x) for x in outs]
@@ -196,6 +198,6 @@ class maskCNNModel3(nn.Module):
 
         #Final
         outs = [x.view(x.size(0), x.size(1), 1, -1) for x in outs]
-        outs = [x.transpose(1, 2).transpose(2, 3).contiguous() for x in outs]
+        outs = [x.transpose(1, 2).transpose(2, 3).contiguous() for x in outs]'''
 
         return outs
