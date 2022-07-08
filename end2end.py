@@ -192,7 +192,7 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
             g_optimizer.zero_grad()
             G_Image_loss, G_Class_loss, G_Acc =  work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY)
 
-            G_Y_loss = G_Image_loss + G_Class_loss 
+            G_Y_loss = G_Image_loss #+ G_Class_loss 
             G_Y_loss.backward()
             g_optimizer.step()
 

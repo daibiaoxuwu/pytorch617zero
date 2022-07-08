@@ -26,8 +26,7 @@ def spec_to_network_input(x, opts):
     y = torch.cat((x[:, -trim_size:, :], x[:, 0:trim_size, :]), 1)
 
     y_abs = torch.abs(y)
-    y_abs_max = torch.tensor(
-        list(map(lambda x: torch.max(x), y_abs)))
+    y_abs_max = torch.tensor( [torch.max(y_abs[x,:,:]) for x in range(y_abs.shape[0])] )
     y_abs_max = to_var(torch.unsqueeze(torch.unsqueeze(y_abs_max, 1), 2))
     y = torch.div(y, y_abs_max)
     return y
@@ -96,3 +95,4 @@ def print_opts(opts):
     print('\n'.join(strlist))
     print('=' * 80)
     return strlist
+
