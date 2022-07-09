@@ -18,6 +18,7 @@ def to_var(x):
     return Variable(x)
 
 def spec_to_network_input(x, opts):
+    assert(x.dtype==torch.cfloat)
     """Converts numpy to variable."""
     freq_size = opts.freq_size
     # trim

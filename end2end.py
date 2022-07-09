@@ -42,7 +42,13 @@ def binary(y):
     y[abs(y)>0.5] = 1
     y[abs(y)<=0.5] = 0
     return y
-
+def normalize(y): 
+    y_abs = torch.abs(y) 
+    y_abs_max = torch.tensor( 
+        list(map(lambda x: torch.max(x), y_abs))) 
+    y_abs_max = to_var(torch.unsqueeze(torch.unsqueeze(y_abs_max, 1), 2)) 
+    y = torch.div(y, y_abs_max) 
+    return y
 def merge_images(sources, targets, Y, opts):
     """Creates a grid consisting of pairs of columns, where the first column in
     each pair contains images source images and the second column in each pair
@@ -95,9 +101,12 @@ def work2(fake_Y_spectrum, images_Y_spectrum,labels_X, C_XtoY, opts):
         if opts.cxtoy == 'True':
             labels_X_estimated = C_XtoY(fake_Y_spectrum)
         else:
-            fake_Y_test_spectrum2 = spec_to_network_input(torch.squeeze(fake_Y_spectrum), opts)
-            labels_X_estimated = F.softmax(fake_Y_test_spectrum2.sum(-1),dim=1)
+            fake_Y_spectrum = spec_to_network_input(torch.squeeze(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]),opts) # ???  
+            assert(fake_Y_spectrum.dtype==torch.cfloat)
+            labels_X_estimated = F.softmax(torch.abs(fake_Y_spectrum).sum(-1),dim=1).squeeze() 
         g_y_class_loss = opts.loss_class(labels_X_estimated, labels_X)
+        #print(torch.max(labels_X_estimated,1)[1], labels_X)
+        #print(labels_X_estimated[0], labels_X[0])
         G_Class_loss = g_y_class_loss
         _, labels_X_estimated = torch.max(labels_X_estimated, 1)
         test_right_case = to_data(labels_X_estimated == labels_X)
@@ -192,7 +201,7 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
             g_optimizer.zero_grad()
             G_Image_loss, G_Class_loss, G_Acc =  work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY)
 
-            G_Y_loss = G_Image_loss #+ G_Class_loss 
+            G_Y_loss = G_Image_loss + G_Class_loss 
             G_Y_loss.backward()
             g_optimizer.step()
 
