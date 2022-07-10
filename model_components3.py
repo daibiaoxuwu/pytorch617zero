@@ -12,8 +12,8 @@ import math
 import sys   
  
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear 
-from complexPyTorch.complexFunctions import complex_relu, complex_max_pool2d 
-from resnet18 import ResNet
+from complexPyTorch.complexFunctions import complex_max_pool2d 
+import torchvision
 from torch.nn.functional import relu, max_pool2d, tanh 
 def complex_tanh(input): 
     return tanh(input.real).type(torch.complex64)+1j*tanh(input.imag).type(torch.complex64) 
@@ -25,14 +25,13 @@ class classificationHybridModel3(nn.Module):
  
     def __init__(self, conv_dim_in=1, conv_dim_out=128, conv_dim_lstm=1024): 
         super(classificationHybridModel3, self).__init__()  
-        self.resnet = ResNet(num_classes = conv_dim_out, norm_layer = ComplexBatchNorm2d)
+        self.resnet = torchvision.models.resnet18(num_classes = conv_dim_out)
         num_ftrs = self.resnet.fc.in_features
         print(num_ftrs)
-        self.resnet.fc = ComplexLinear(num_ftrs, conv_dim_out)
-        self.resnet.conv1 = ComplexConv2d(1,64,7,padding=3)
+        self.resnet.fc = nn.Linear(num_ftrs, conv_dim_out)
+        self.resnet.conv1 = nn.Conv2d(2,64,7,padding=3)
 
     def forward(self, x):  
-        x = (x[:,0]+1j*x[:,1]).unsqueeze(1)
         out = self.resnet(x)
         return out   
  
@@ -72,8 +71,8 @@ class maskCNNModel3(nn.Module):
                      
             # CNN_1 
             outs = self.conv1(outs) 
-            #outs = self.bn2d1(outs) 
-            outs = complex_relu(outs) 
+            outs = self.bn2d1(outs) 
+            outs = complex_tanh(outs) 
      
             # CNN_2 
             ''' 
@@ -92,14 +91,14 @@ class maskCNNModel3(nn.Module):
             ''' 
      
             outs = self.conv21a(outs) 
-            #outs = self.bn2d21a(outs) 
-            outs = complex_relu(outs) 
+            outs = self.bn2d21a(outs) 
+            outs = complex_tanh(outs) 
             outs = self.conv21b(outs) 
-            #outs = self.bn2d21b(outs) 
-            outs = complex_relu(outs) 
+            outs = self.bn2d21b(outs) 
+            outs = complex_tanh(outs) 
             outs = self.conv21c(outs) 
-            #outs = self.bn2d21c(outs) 
-            outs = complex_relu(outs) 
+            outs = self.bn2d21c(outs) 
+            outs = complex_tanh(outs) 
      
             ''' 
             out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
@@ -109,16 +108,16 @@ class maskCNNModel3(nn.Module):
             ''' 
      
             outs = self.conv3c(outs) 
-            #outs = self.bn2d3c(outs) 
-            #outs = complex_tanh(outs) 
+            outs = self.bn2d3c(outs) 
+            outs = complex_tanh(outs) 
      
             ''' 
             outs = x.transpose(1, 2) for x in outs] 
             outs = x.reshape(x.size(0), x.size(1), -1) for x in outs] 
             outs = self.fc1(outs) 
-            outs = complex_relu(outs) 
+            outs = complex_tanh(outs) 
             outs = self.fc2(outs) 
-            outs = complex_relu(outs) 
+            outs = complex_tanh(outs) 
      
             #Final 
             outs = x.view(x.size(0), x.size(1), 1, -1) for x in outs] 
