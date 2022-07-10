@@ -27,7 +27,6 @@ class classificationHybridModel3(nn.Module):
         super(classificationHybridModel3, self).__init__()  
         self.resnet = torchvision.models.resnet18(num_classes = conv_dim_out)
         num_ftrs = self.resnet.fc.in_features
-        print(num_ftrs)
         self.resnet.fc = nn.Linear(num_ftrs, conv_dim_out)
         self.resnet.conv1 = nn.Conv2d(2,64,7,padding=3)
 
@@ -43,18 +42,20 @@ class maskCNNModel3(nn.Module):
         self.conv1 = ComplexConv2d(1, 64, 7, padding=3) 
         self.bn2d1 = ComplexBatchNorm2d(64) 
  
-        self.conv21a = ComplexConv2d(64, 64, 5, padding=2) 
+        self.conv21a = ComplexConv2d(129, 64, 5, padding=2) 
         self.bn2d21a = ComplexBatchNorm2d(64) 
         self.conv21b = ComplexConv2d(64, 64, 3, padding=1) 
         self.bn2d21b = ComplexBatchNorm2d(64) 
         self.conv21c = ComplexConv2d(64, 64, 3, padding=1) 
         self.bn2d21c = ComplexBatchNorm2d(64) 
+        self.conv22a = ComplexConv2d(129, 64, 5, padding=2) 
+        self.bn2d22a = ComplexBatchNorm2d(64) 
         self.conv22b = ComplexConv2d(64, 64, 3, padding=1) 
         self.bn2d22b = ComplexBatchNorm2d(64) 
         self.conv22c = ComplexConv2d(64, 64, 3, padding=1) 
         self.bn2d22c = ComplexBatchNorm2d(64) 
  
-        self.conv3a = ComplexConv2d(64, 64, 5, padding=2) 
+        self.conv3a = ComplexConv2d(129, 64, 5, padding=2) 
         self.bn2d3a = ComplexBatchNorm2d(64) 
         self.conv3b = ComplexConv2d(64, 64, 7, padding=3) 
         self.bn2d3b = ComplexBatchNorm2d(64) 
@@ -65,65 +66,79 @@ class maskCNNModel3(nn.Module):
         #self.fc2 = ComplexLinear(opts.fc1_dim, opts.freq_size) 
  
     def forward(self, xslist): 
-        outlist = []
-        for xs in xslist:
-            outs = (xs[:,0]+1j*xs[:,1]).unsqueeze(1) 
-                     
-            # CNN_1 
-            outs = self.conv1(outs) 
-            outs = self.bn2d1(outs) 
-            outs = complex_tanh(outs) 
-     
-            # CNN_2 
-            ''' 
-            out_abs = torch.mean(torch.stack([torch.abs(out) for out in outs],0),0) 
-            outavg = [out * (out_abs / torch.abs(out)) for out in outs] 
-            out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
-            outmax = [out * (out_max / torch.abs(out)) for out in outs] 
-            out_min = torch.min(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
-            outmin = [out * (out_min / torch.abs(out)) for out in outs] 
-            ''' 
-            ''' 
-            out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
-            outmax = [out * (out_max / (torch.abs(out)+1e-6)) for out in outs] 
-     
-            outs = torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)] 
-            ''' 
-     
-            outs = self.conv21a(outs) 
-            outs = self.bn2d21a(outs) 
-            outs = complex_tanh(outs) 
-            outs = self.conv21b(outs) 
-            outs = self.bn2d21b(outs) 
-            outs = complex_tanh(outs) 
-            outs = self.conv21c(outs) 
-            outs = self.bn2d21c(outs) 
-            outs = complex_tanh(outs) 
-     
-            ''' 
-            out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
-            outmax = [out * (out_max /  (torch.abs(out)+1e-6)) for out in outs] 
-     
-            outs = torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)] 
-            ''' 
-     
-            outs = self.conv3c(outs) 
-            outs = self.bn2d3c(outs) 
-            outs = complex_tanh(outs) 
-     
-            ''' 
-            outs = x.transpose(1, 2) for x in outs] 
-            outs = x.reshape(x.size(0), x.size(1), -1) for x in outs] 
-            outs = self.fc1(outs) 
-            outs = complex_tanh(outs) 
-            outs = self.fc2(outs) 
-            outs = complex_tanh(outs) 
-     
-            #Final 
-            outs = x.view(x.size(0), x.size(1), 1, -1) for x in outs] 
-            outs = x.transpose(1, 2).transpose(2, 3).contiguous() for x in outs]''' 
-     
-            outs = torch.stack(( outs.real, outs.imag), 1).squeeze()
-            outlist.append(outs)
-        return outlist
+        xs = [(xs[:,0]+1j*xs[:,1]).unsqueeze(1) for xs in xslist]
+                 
+        # CNN_1 
+        outs = [self.conv1(x) for x in xs] 
+        outs = [self.bn2d1(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+ 
+        # CNN_2 
+        ''' 
+        out_abs = torch.mean(torch.stack([torch.abs(out) for out in outs],0),0) 
+        outavg = [out * (out_abs / torch.abs(out)) for out in outs] 
+        out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
+        outmax = [out * (out_max / torch.abs(out)) for out in outs] 
+        out_min = torch.min(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
+        outmin = [out * (out_min / torch.abs(out)) for out in outs] 
+        ''' 
+        out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
+        outmax = [out * (out_max / (torch.abs(out)+1e-6)) for out in outs] 
+ 
+        outs = [torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)] 
+ 
+        outs = [self.conv21a(x) for x in outs] 
+        outs = [self.bn2d21a(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+        outs = [self.conv21b(x) for x in outs] 
+        outs = [self.bn2d21b(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+        outs = [self.conv21c(x) for x in outs] 
+        outs = [self.bn2d21c(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+ 
+        out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
+        outmax = [out * (out_max / (torch.abs(out)+1e-6)) for out in outs] 
+ 
+        outs = [torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)] 
+ 
+        outs = [self.conv22a(x) for x in outs] 
+        outs = [self.bn2d22a(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+        outs = [self.conv22b(x) for x in outs] 
+        outs = [self.bn2d22b(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+        outs = [self.conv22c(x) for x in outs] 
+        outs = [self.bn2d22c(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+
+        out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
+        outmax = [out * (out_max /  (torch.abs(out)+1e-6)) for out in outs] 
+ 
+        outs = [torch.cat((outs[idx], outmax[idx], xs[idx]),1) for idx in range(self.opts.stack_imgs)] 
+ 
+        outs = [self.conv3a(x) for x in outs] 
+        outs = [self.bn2d3a(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+        outs = [self.conv3b(x) for x in outs] 
+        outs = [self.bn2d3b(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+        outs = [self.conv3c(x) for x in outs] 
+        outs = [self.bn2d3c(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+ 
+        ''' 
+        outs = [x.transpose(1, 2) for x in outs] 
+        outs = [x.reshape(x.size(0), x.size(1), -1) for x in outs] 
+        outs = [self.fc1(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+        outs = [self.fc2(x) for x in outs] 
+        outs = [complex_tanh(x) for x in outs] 
+ 
+        #Final 
+        outs = [x.view(x.size(0), x.size(1), 1, -1) for x in outs] 
+        outs = [x.transpose(1, 2).transpose(2, 3).contiguous() for x in outs]''' 
+ 
+        outs = [torch.stack(( x.real, x.imag), 1).squeeze() for x in outs]
+        return outs
 

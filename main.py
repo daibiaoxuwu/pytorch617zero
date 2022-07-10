@@ -30,7 +30,7 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     #state_dict['fc1.weight']= state_dict['fc1.weight'][:, :4096]
     #state_dict.pop('fc2.weight')
     #state_dict.pop('fc2.bias')
-    maskCNN.load_state_dict(state_dict)#, strict=False)
+    #maskCNN.load_state_dict(state_dict)#, strict=False)
 
     if opts.cxtoy == 'True':
         C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.conv_dim_lstm)
