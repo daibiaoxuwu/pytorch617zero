@@ -150,7 +150,7 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
         G_Image_loss += G_Image_loss_img / opts.stack_imgs
         G_Class_loss += G_Class_loss_img / opts.stack_imgs
         G_Acc += G_Acc_img / opts.stack_imgs
-    if opts.iteration % opts.test_step == 1: 
+    if 9opts.iteration - opts.init_train_iter) % opts.test_step == 1: 
         save_samples(opts.iteration, images_Y_spectrum, images_X_spectrum, fake_Y_spectrums, 'val', opts)
     return G_Image_loss, G_Class_loss, G_Acc
 
@@ -228,7 +228,7 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
 
             if (iteration) % opts.checkpoint_every == 0: checkpoint(iteration, models, opts)
 
-            if False:# iteration == 1 or iteration % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
+            if iteration - opts.init_train_iter == 1 or (iteration - opts.init_train_iter) % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
                 mask_CNN.eval()
                 if opts.cxtoy == 'True':C_XtoY.eval()
                 with torch.no_grad():

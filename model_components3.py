@@ -12,7 +12,7 @@ import math
 import sys   
  
 from complexPyTorch.complexLayers import ComplexBatchNorm2d, ComplexConv2d, ComplexLinear 
-from complexPyTorch.complexFunctions import complex_max_pool2d 
+from complexPyTorch.complexFunctions import complex_max_pool2d , complex_relu
 import torchvision
 from torch.nn.functional import relu, max_pool2d, tanh 
 def complex_tanh(input): 
@@ -71,7 +71,7 @@ class maskCNNModel3(nn.Module):
         # CNN_1 
         outs = [self.conv1(x) for x in xs] 
         outs = [self.bn2d1(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
  
         # CNN_2 
         ''' 
@@ -89,13 +89,13 @@ class maskCNNModel3(nn.Module):
  
         outs = [self.conv21a(x) for x in outs] 
         outs = [self.bn2d21a(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
         outs = [self.conv21b(x) for x in outs] 
         outs = [self.bn2d21b(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
         outs = [self.conv21c(x) for x in outs] 
         outs = [self.bn2d21c(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
  
         out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
         outmax = [out * (out_max / (torch.abs(out)+1e-6)) for out in outs] 
@@ -104,13 +104,13 @@ class maskCNNModel3(nn.Module):
  
         outs = [self.conv22a(x) for x in outs] 
         outs = [self.bn2d22a(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
         outs = [self.conv22b(x) for x in outs] 
         outs = [self.bn2d22b(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
         outs = [self.conv22c(x) for x in outs] 
         outs = [self.bn2d22c(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
 
         out_max = torch.max(torch.stack([torch.abs(out) for out in outs],0),0)[0] 
         outmax = [out * (out_max /  (torch.abs(out)+1e-6)) for out in outs] 
@@ -119,21 +119,21 @@ class maskCNNModel3(nn.Module):
  
         outs = [self.conv3a(x) for x in outs] 
         outs = [self.bn2d3a(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
         outs = [self.conv3b(x) for x in outs] 
         outs = [self.bn2d3b(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
         outs = [self.conv3c(x) for x in outs] 
         outs = [self.bn2d3c(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
  
         ''' 
         outs = [x.transpose(1, 2) for x in outs] 
         outs = [x.reshape(x.size(0), x.size(1), -1) for x in outs] 
         outs = [self.fc1(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
         outs = [self.fc2(x) for x in outs] 
-        outs = [complex_tanh(x) for x in outs] 
+        outs = [complex_relu(x) for x in outs] 
  
         #Final 
         outs = [x.view(x.size(0), x.size(1), 1, -1) for x in outs] 
