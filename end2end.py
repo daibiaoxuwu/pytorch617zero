@@ -56,19 +56,18 @@ def merge_images(sources, targets, Y, opts):
     the first column.
     """
     _, _, h, w = sources[0].shape
-    row = 1# int(np.sqrt(opts.batch_size))
-    column = 1# math.ceil(opts.batch_size / row)
+    row =  int(np.sqrt(opts.batch_size))
+    column =  math.ceil(opts.batch_size / row)
     merged = np.zeros([2, row * h , column * w * opts.stack_imgs * 3])
     for stack_idx in range(opts.stack_imgs):
         for idx, (s, t, y) in enumerate(zip(sources[stack_idx], targets[stack_idx], Y[stack_idx] )):
             i = idx // column
             j = idx % column
-            merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3)     * w:(j * 3 * opts.stack_imgs + 1 + stack_idx*3) * w,] = s
+            merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3)     * w:(j * 3 * opts.stack_imgs + 1 + stack_idx*3) * w,] = s/10
             merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3 + 1) * w:(j * 3 * opts.stack_imgs + 2 + stack_idx*3) * w,] = t
-            merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3 + 2) * w:(j * 3 * opts.stack_imgs + 3 + stack_idx*3) * w,] = y
-            break
+            merged[:, i * h:(i + 1) * h,  (j * 3 * opts.stack_imgs + stack_idx*3 + 2) * w:(j * 3 * opts.stack_imgs + 3 + stack_idx*3) * w,] = y/10
     merged = merged.transpose(1, 2, 0)
-    newsize = ( merged.shape[1] ,merged.shape[1] * opts.stack_imgs )
+    #newsize = ( merged.shape[1] ,merged.shape[1] * opts.stack_imgs )
     #return cv2.resize(merged, dsize=newsize)
     return merged
 
@@ -92,8 +91,8 @@ def save_samples(iteration, fixed_Y, fixed_X, fake_Y, name, opts):
 
 
 def work2(fake_Y_spectrum, images_Y_spectrum,labels_X, C_XtoY, opts):
-        if opts.out_channel == 1:
-            g_y_pix_loss = opts.loss_spec(fake_Y_spectrum, torch.abs(images_Y_spectrum[:,0]+1j*images_Y_spectrum[:,1]))
+        if opts.comp_channel == 2:
+            g_y_pix_loss = opts.loss_spec(fake_Y_spectrum, images_Y_spectrum)
         else:
             g_y_pix_loss = opts.loss_spec( torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]), torch.abs(images_Y_spectrum[:,0]+1j*images_Y_spectrum[:,1]))
 
@@ -136,6 +135,8 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
     if opts.model_ver == 0: fake_Y_spectrums = [mask_CNN(i) for i in images_X_spectrum]
     else: fake_Y_spectrums = mask_CNN(images_X_spectrum)
 
+    if (opts.iteration - opts.init_train_iter) % opts.test_step == 1: 
+        save_samples(opts.iteration, images_Y_spectrum, images_X_spectrum, fake_Y_spectrums, 'val', opts)
     if opts.avg_flag == 'True':
         fake_Y_spectrum_abs = torch.mean(torch.stack([torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]) for fake_Y_spectrum in fake_Y_spectrums],0),0)
 
@@ -150,8 +151,6 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
         G_Image_loss += G_Image_loss_img / opts.stack_imgs
         G_Class_loss += G_Class_loss_img / opts.stack_imgs
         G_Acc += G_Acc_img / opts.stack_imgs
-    if 9opts.iteration - opts.init_train_iter) % opts.test_step == 1: 
-        save_samples(opts.iteration, images_Y_spectrum, images_X_spectrum, fake_Y_spectrums, 'val', opts)
     return G_Image_loss, G_Class_loss, G_Acc
 
 
@@ -228,7 +227,7 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
 
             if (iteration) % opts.checkpoint_every == 0: checkpoint(iteration, models, opts)
 
-            if iteration - opts.init_train_iter == 1 or (iteration - opts.init_train_iter) % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
+            if (iteration - opts.init_train_iter) % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
                 mask_CNN.eval()
                 if opts.cxtoy == 'True':C_XtoY.eval()
                 with torch.no_grad():

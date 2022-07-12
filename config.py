@@ -43,7 +43,7 @@ def create_parser():
     parser.add_argument('--checkpoint_dir', type=str, default='/data/djl/checkpoints/default') 
     parser.add_argument('--load', type=str, default='yes') 
     parser.add_argument('--log_step', type=int, default=10) 
-    parser.add_argument('--test_step', type=int, default=500) 
+    parser.add_argument('--test_step', type=int, default=200) 
     parser.add_argument( '--train_iters', type=int, default=10000, help= 'The number of training iterations to run (you can Ctrl-C out earlier if you want).') 
     parser.add_argument('--sample_every', type=int, default=10000) 
     parser.add_argument('--checkpoint_every', type=int, default=100) 
@@ -54,7 +54,7 @@ def create_parser():
     parser.add_argument('--use_old_data', type=str, default='True') 
     parser.add_argument('--write_new_data', type=str, default='False') 
     parser.add_argument('--model_ver', type=int, default=3) 
-    parser.add_argument('--max_test_iters', type=int, default=100) 
+    parser.add_argument('--max_test_iters', type=int, default=50) 
     parser.add_argument('--flip_flat', type=str, default='False') 
     parser.add_argument('--cut_data_by', type=int, default=1) 
     parser.add_argument('--terminate_acc', type=float, default=0.98) 
@@ -72,8 +72,10 @@ def create_parser():
     parser.add_argument('--cxtoy', type=str, default='True') 
     parser.add_argument('--w_line', type=float, default=1) 
     parser.add_argument('--load_cxtoy', type=str, default='True') 
+    parser.add_argument('--load_maskcnn', type=str, default='True') 
     parser.add_argument('--avg_flag', type=str, default='False') 
     parser.add_argument('--layer_cnt', type=int, default=2) 
+    parser.add_argument('--comp_channel', type=int, default=2) 
      
      
  

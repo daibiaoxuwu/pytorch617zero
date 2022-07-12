@@ -24,13 +24,14 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
     print('LOAD MODEL:', maskCNN_path)
 
     maskCNN = maskCNNModel(opts)
-    state_dict = torch.load(maskCNN_path, map_location=lambda storage, loc: storage)
-    for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
-    #state_dict['conv2.1.weight']= torch.cat((state_dict['conv2.1.weight'], torch.zeros(64,258-130,5,5)),1)
-    #state_dict['fc1.weight']= state_dict['fc1.weight'][:, :4096]
-    #state_dict.pop('fc2.weight')
-    #state_dict.pop('fc2.bias')
-    maskCNN.load_state_dict(state_dict)#, strict=False)
+    if opts.load_maskcnn == 'True':
+        state_dict = torch.load(maskCNN_path, map_location=lambda storage, loc: storage)
+        for key in list(state_dict.keys()): state_dict[key.replace('module.', '')] = state_dict.pop(key)
+        #state_dict['conv2.1.weight']= torch.cat((state_dict['conv2.1.weight'], torch.zeros(64,258-130,5,5)),1)
+        #state_dict['fc1.weight']= state_dict['fc1.weight'][:, :4096]
+        #state_dict.pop('fc2.weight')
+        #state_dict.pop('fc2.bias')
+        maskCNN.load_state_dict(state_dict)#, strict=False)
 
     if opts.cxtoy == 'True':
         C_XtoY = classificationHybridModel(conv_dim_in=opts.x_image_channel, conv_dim_out=opts.n_classes, conv_dim_lstm=opts.conv_dim_lstm)
@@ -121,6 +122,11 @@ if __name__ == "__main__":
                 opts.load = 'no'
                 print('--WARNING: CHECKPOINT_DIR NOT EXIST, SETTING OPTS.LOAD TO NO--')
             else: opts.load_iters = max(vals)
+    codepath = os.path.join(opts.checkpoint_dir, 'code'+str(opts.load_iters))
+    create_dir(codepath)
+    os.system('cp '+ os.path.dirname(os.path.abspath(__file__))+r'/*.py '+codepath)
+    
+
     if opts.load == 'yes':
         print('LOAD ITER:  ',opts.load_iters)
         models = load_checkpoint(opts, maskCNNModel, classificationHybridModel)
