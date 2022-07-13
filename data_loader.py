@@ -34,6 +34,7 @@ class lora_dataset(data.Dataset):
  
     def __getitem__(self, index0): 
             #if index0 == 0: print('=========using real data and adding noise according to signal amplitude') 
+        if(re.search(r"SF\d+_125K", self.opts.data_dir)):
             try: 
                 data_perY = [] 
                 symbol_index = random.randint(0,self.opts.n_classes-1) 
@@ -94,22 +95,89 @@ class lora_dataset(data.Dataset):
                 print(e) 
             except OSError as e: 
                 print(e) 
- 
+        elif(re.search(r"sf\d+-1b-out-upload", self.opts.data_dir)):
+            data_pers = [] 
+            data_perY = [] 
+            symbol_index = random.randint(0,self.opts.n_classes-1) 
+            fs = random.choice(self.files[symbol_index])
+            for k in range(self.opts.stack_imgs): 
+                fname = fs.replace('Gateway1', 'Gateway'+str(k+1))
+                chirp_raw = self.load_img(fname).cuda() 
+                data_pers.append(chirp_raw) 
+                fnames1 = fname.split('/')
+                data_file_name = fnames1[-1] 
+                '''
+                fnames1[-1] = fnames1[-1].split('_')
+                fnames1[-1][1] = '35'
+                fnames1[-1] = '_'.join(fnames1[-1])
+                fname = '/'.join(fnames1)
+                chirpY = self.load_img(fname).cuda() '''
+                opts=self.opts
+                nsamp = int(opts.fs * opts.n_classes / opts.bw)
+                t = np.linspace(0, nsamp / opts.fs, nsamp)
+                phi = random.uniform(-90, 90)
+                chirpI = chirp(t, f0=-opts.bw/2, f1=opts.bw/2, t1=2** opts.sf / opts.bw , method='linear', phi=phi+90)
+                chirpQ = chirp(t, f0=-opts.bw/2, f1=opts.bw/2, t1=2** opts.sf / opts.bw, method='linear', phi=phi)
+                mchirp0 = chirpI+1j*chirpQ
+                mchirp = np.tile(mchirp0, 2)
+                #time_shift = round((opts.n_classes - symbol_index) / opts.n_classes * nsamp)
+                time_shift = round(symbol_index / opts.n_classes * nsamp)
+                chirp_raw = mchirp[time_shift:time_shift+nsamp]
+                chirp_raw = torch.tensor(chirp_raw, dtype=torch.cfloat)
+                data_perY.append(chirp_raw)
+
+
+
+
+            label_per = (self.opts.n_classes - symbol_index)%self.opts.n_classes 
+            label_per = torch.tensor(label_per, dtype=int).cuda() 
+            data_pers = torch.stack(data_pers).cuda() 
+
+            return data_pers, label_per, data_perY, data_file_name 
+            
+        else: raise NotImplementedError('data_dir not known')
  
  
 # receive the csi feature map derived by the ray model as the input 
 def lora_loader(opts): 
     files = dict(zip(list(range(opts.n_classes)), [[] for i in range(opts.n_classes)])) 
  
-    assert(re.search(r"SF\d+_125K", opts.data_dir)) 
-    for ff in os.listdir(opts.data_dir): 
-        for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')): 
-            symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes 
-            files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f)) 
+    if(re.search(r"SF\d+_125K", opts.data_dir)):
+        for ff in os.listdir(opts.data_dir): 
+            for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')): 
+                symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes 
+                files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f)) 
+    elif(re.search(r"sf\d+-1b-out-upload", opts.data_dir)):
+        if max(opts.snr_list)!=min(opts.snr_list): raise  NotImplementedError('only single snr now')
+        for i in range(1,5): assert 'Gateway'+str(i) in os.listdir(opts.data_dir), 'cannot find folder Gateway'+str(i)
+
+        filelist = [ set(os.listdir(os.path.join(opts.data_dir, 'Gateway'+str(i)))) for i in range(2,5)]
+
+        '''
+        a = [0]*50
+        for f in os.listdir(os.path.join(opts.data_dir, 'Gateway1')): 
+            snr = round(float(f.split('_')[1]))
+            a[-snr]+=1
+        print(a)'''
+        for f in os.listdir(os.path.join(opts.data_dir, 'Gateway1')): 
+            symbol_idx = (opts.n_classes - round(float(f.split('_')[0])))%opts.n_classes 
+            snr = round(float(f.split('_')[1]))
+            if snr not in opts.snr_list: continue
+            flag = 0
+            for i in range(3): 
+                if f not in filelist[i]: 
+                    flag+=1
+                    break
+            if flag==0: files[symbol_idx].append(os.path.join(opts.data_dir, 'Gateway1', f))
+
+    else: raise NotImplementedError('data_dir not known')
+
     for i in files.keys(): 
         files[i].sort(key = lambda x: int(os.path.basename(x).split('_')[0])) 
     splitpos = [ opts.stack_imgs if len(files[i]) >= 2*opts.stack_imgs else 0 for i in range(opts.n_classes)] 
-     
+
+    a = [len(files[i]) for i in range(opts.n_classes)] 
+    print('read data: max cnt', max(a), a.index(max(a)), 'min cnt', min(a), a.index(min(a)) )
  
     training_dataset = lora_dataset(opts, dict(zip(list(range(opts.n_classes)), [files[i][splitpos[i]:] for i in range(opts.n_classes)])) ) 
     training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers,  drop_last=True) 
