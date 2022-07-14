@@ -32,15 +32,29 @@ class lora_dataset(data.Dataset):
         lora_img = lora_img[::2] + lora_img[1::2]*1j 
         return torch.tensor(lora_img) 
  
+ 
     def __getitem__(self, index0): 
             #if index0 == 0: print('=========using real data and adding noise according to signal amplitude') 
-        if(re.search(r"SF\d+_125K", self.opts.data_dir)):
             try: 
                 data_perY = [] 
                 symbol_index = random.randint(0,self.opts.n_classes-1) 
-                while(len(self.files[symbol_index]) < self.opts.stack_imgs):  
-                    symbol_index = random.randint(0,self.opts.n_classes-1) 
-                fs = random.sample(self.files[symbol_index], self.opts.stack_imgs) 
+                if(re.search(r"SF\d+_125K", self.opts.data_dir)):
+                    while(len(self.files[symbol_index]) < self.opts.stack_imgs):  
+                        symbol_index = random.randint(0,self.opts.n_classes-1) 
+                else:
+                    while(len(self.files[symbol_index]) < 1):  
+                        symbol_index = random.randint(0,self.opts.n_classes-1) 
+
+                if(re.search(r"SF\d+_125K", self.opts.data_dir)):
+                    fs = random.sample(self.files[symbol_index], self.opts.stack_imgs) 
+                else:
+                    fs = [random.choice(self.files[symbol_index]),]
+                    for i in range(2,self.opts.stack_imgs+1):
+                        fs.append( fs[0].replace('Gateway1', 'Gateway'+str(i))[:-1]+str(i) )
+                        if not os.path.exists(fs[-1]): 
+                            print(fs[-1])
+                            return self.__getitem__(index0) 
+
                 for k in range(self.opts.stack_imgs): 
                     chirp_raw = self.load_img(fs[k]).cuda() 
                     data_perY.append(chirp_raw) 
@@ -95,48 +109,6 @@ class lora_dataset(data.Dataset):
                 print(e) 
             except OSError as e: 
                 print(e) 
-        elif(re.search(r"sf\d+-1b-out-upload", self.opts.data_dir)):
-            data_pers = [] 
-            data_perY = [] 
-            symbol_index = random.randint(0,self.opts.n_classes-1) 
-            fs = random.choice(self.files[symbol_index])
-            for k in range(self.opts.stack_imgs): 
-                fname = fs.replace('Gateway1', 'Gateway'+str(k+1))
-                chirp_raw = self.load_img(fname).cuda() 
-                data_pers.append(chirp_raw) 
-                fnames1 = fname.split('/')
-                data_file_name = fnames1[-1] 
-                '''
-                fnames1[-1] = fnames1[-1].split('_')
-                fnames1[-1][1] = '35'
-                fnames1[-1] = '_'.join(fnames1[-1])
-                fname = '/'.join(fnames1)
-                chirpY = self.load_img(fname).cuda() '''
-                opts=self.opts
-                nsamp = int(opts.fs * opts.n_classes / opts.bw)
-                t = np.linspace(0, nsamp / opts.fs, nsamp)
-                phi = random.uniform(-90, 90)
-                chirpI = chirp(t, f0=-opts.bw/2, f1=opts.bw/2, t1=2** opts.sf / opts.bw , method='linear', phi=phi+90)
-                chirpQ = chirp(t, f0=-opts.bw/2, f1=opts.bw/2, t1=2** opts.sf / opts.bw, method='linear', phi=phi)
-                mchirp0 = chirpI+1j*chirpQ
-                mchirp = np.tile(mchirp0, 2)
-                #time_shift = round((opts.n_classes - symbol_index) / opts.n_classes * nsamp)
-                time_shift = round(symbol_index / opts.n_classes * nsamp)
-                chirp_raw = mchirp[time_shift:time_shift+nsamp]
-                chirp_raw = torch.tensor(chirp_raw, dtype=torch.cfloat)
-                data_perY.append(chirp_raw)
-
-
-
-
-            label_per = (self.opts.n_classes - symbol_index)%self.opts.n_classes 
-            label_per = torch.tensor(label_per, dtype=int).cuda() 
-            data_pers = torch.stack(data_pers).cuda() 
-
-            return data_pers, label_per, data_perY, data_file_name 
-            
-        else: raise NotImplementedError('data_dir not known')
- 
  
 # receive the csi feature map derived by the ray model as the input 
 def lora_loader(opts): 
@@ -147,11 +119,13 @@ def lora_loader(opts):
             for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')): 
                 symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes 
                 files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f)) 
-    elif(re.search(r"sf\d+-1b-out-upload", opts.data_dir)):
+    elif(re.search(r"sf\d+-1b$", opts.data_dir)):
         if max(opts.snr_list)!=min(opts.snr_list): raise  NotImplementedError('only single snr now')
         for i in range(1,5): assert 'Gateway'+str(i) in os.listdir(opts.data_dir), 'cannot find folder Gateway'+str(i)
 
         filelist = [ set(os.listdir(os.path.join(opts.data_dir, 'Gateway'+str(i)))) for i in range(2,5)]
+        wrongnumber = scio.loadmat(os.path.join( opts.data_dir, 'wrongnumber.mat'))['wrongnumber'][0]
+        wrongnumber = set(wrongnumber)
 
         '''
         a = [0]*50
@@ -159,16 +133,19 @@ def lora_loader(opts):
             snr = round(float(f.split('_')[1]))
             a[-snr]+=1
         print(a)'''
-        for f in os.listdir(os.path.join(opts.data_dir, 'Gateway1')): 
-            symbol_idx = (opts.n_classes - round(float(f.split('_')[0])))%opts.n_classes 
-            snr = round(float(f.split('_')[1]))
-            if snr not in opts.snr_list: continue
-            flag = 0
-            for i in range(3): 
-                if f not in filelist[i]: 
-                    flag+=1
-                    break
-            if flag==0: files[symbol_idx].append(os.path.join(opts.data_dir, 'Gateway1', f))
+        for ff in os.listdir(os.path.join(opts.data_dir, 'Gateway1')): 
+            if int(ff) in wrongnumber: continue
+            for f in os.listdir(os.path.join(opts.data_dir, 'Gateway1',ff, 'woCFO')): 
+                symbol_idx = (opts.n_classes - round(float(f.split('_')[2])))%opts.n_classes 
+                #snr = round(float(f.split('_')[1]))
+                #if snr not in opts.snr_list: continue
+                flag = 0
+                pathf = os.path.join(opts.data_dir, 'Gateway1',ff, 'woCFO', f)
+                for i in range(3): 
+                    if not os.path.exists(pathf.replace('Gateway1', 'Gateway'+str(i+2))[:-1]+str(i+2)):
+                        flag+=1
+                        break
+                if flag==0: files[symbol_idx].append(pathf)
 
     else: raise NotImplementedError('data_dir not known')
 

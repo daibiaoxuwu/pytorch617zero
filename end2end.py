@@ -104,7 +104,7 @@ def work2(fake_Y_spectrum, images_Y_spectrum,labels_X, C_XtoY, opts):
             assert(fake_Y_spectrum.dtype==torch.cfloat)
             labels_X_estimated = F.softmax(torch.abs(fake_Y_spectrum).sum(-1),dim=1).squeeze() 
         g_y_class_loss = opts.loss_class(labels_X_estimated, labels_X)
-        #print(torch.max(labels_X_estimated,1)[1], labels_X)
+        #if (opts.iteration - opts.init_train_iter) % opts.test_step == 1: print(torch.max(labels_X_estimated,1)[1], labels_X)
         #print(labels_X_estimated[0], labels_X[0])
         G_Class_loss = g_y_class_loss
         _, labels_X_estimated = torch.max(labels_X_estimated, 1)
