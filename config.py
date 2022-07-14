@@ -42,11 +42,11 @@ def create_parser():
     parser.add_argument( '--ratio_bt_train_and_test', type=float, default=0.9, help='The ratio between the train and the test dataset') 
     parser.add_argument('--checkpoint_dir', type=str, default='/data/djl/checkpoints/default') 
     parser.add_argument('--load', type=str, default='yes') 
-    parser.add_argument('--log_step', type=int, default=10) 
-    parser.add_argument('--test_step', type=int, default=200) 
+    parser.add_argument('--log_step', type=int, default=100) 
+    parser.add_argument('--test_step', type=int, default=500) 
     parser.add_argument( '--train_iters', type=int, default=10000, help= 'The number of training iterations to run (you can Ctrl-C out earlier if you want).') 
     parser.add_argument('--sample_every', type=int, default=10000) 
-    parser.add_argument('--checkpoint_every', type=int, default=100) 
+    parser.add_argument('--checkpoint_every', type=int, default=500) 
     parser.add_argument('--load_checkpoint_dir', type=str, default='/data/djl') 
     parser.add_argument('--stack_imgs', type=int, default=4)  # Multi-image SR 
     parser.add_argument('--train_datacnt', type=int, default=500) 
@@ -75,7 +75,10 @@ def create_parser():
     parser.add_argument('--load_maskcnn', type=str, default='True') 
     parser.add_argument('--avg_flag', type=str, default='False') 
     parser.add_argument('--layer_cnt', type=int, default=2) 
+    parser.add_argument('--norm_factor', type=float, default=2) 
+     
     parser.add_argument('--comp_channel', type=int, default=2) 
+     
      
      
  

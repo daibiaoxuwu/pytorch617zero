@@ -29,7 +29,7 @@ def spec_to_network_input(x, opts):
     y_abs = torch.abs(y)
     y_abs_max = torch.tensor( [torch.max(y_abs[x,:,:]) for x in range(y_abs.shape[0])] )
     y_abs_max = to_var(torch.unsqueeze(torch.unsqueeze(y_abs_max, 1), 2))
-    y = torch.div(y, y_abs_max*2)
+    y = torch.div(y, y_abs_max*opts.norm_factor)
     return y
 
 def spec_to_network_input2(x, opts):
