@@ -90,27 +90,45 @@ def save_samples(iteration, fixed_Y, fixed_X, fake_Y, name, opts):
     print('SAVED TEST SAMPLE: {}'.format(path))
 
 
-def work2(fake_Y_spectrum, images_Y_spectrum,labels_X, C_XtoY, opts):
+def cntloss(labels_X_estimated, labels_X, opts):
+    G_Class_loss = opts.loss_class(labels_X_estimated, labels_X)
+    _, labels_X_output = torch.max(labels_X_estimated, 1)
+    test_right_case = to_data(labels_X_output == labels_X)
+    G_Acc = np.sum(test_right_case) / opts.batch_size
+    return G_Class_loss, G_Acc
+
+def work2(fake_Y_spectrums, images_Y_spectrums,labels_X, C_XtoY, opts):
+    labels_X_estimated_all = torch.zeros((opts.n_classes,))
+    G_Image_loss = 0
+    G_Class_loss = 0
+    for i in range(opts.stack_imgs):
+        fake_Y_spectrum = fake_Y_spectrums[i]
+        images_Y_spectrum = images_Y_spectrums[i]
         if opts.comp_channel == 2:
             g_y_pix_loss = opts.loss_spec(fake_Y_spectrum, images_Y_spectrum)
         else:
             g_y_pix_loss = opts.loss_spec( torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]), torch.abs(images_Y_spectrum[:,0]+1j*images_Y_spectrum[:,1]))
 
-        G_Image_loss = opts.w_image * g_y_pix_loss
+        G_Image_loss += opts.w_image * g_y_pix_loss
         if opts.cxtoy == 'True':
             labels_X_estimated = C_XtoY(fake_Y_spectrum)
         else:
             fake_Y_spectrum = spec_to_network_input(torch.squeeze(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]),opts) # ???  
             assert(fake_Y_spectrum.dtype==torch.cfloat)
             labels_X_estimated = F.softmax(torch.abs(fake_Y_spectrum).sum(-1),dim=1).squeeze() 
-        g_y_class_loss = opts.loss_class(labels_X_estimated, labels_X)
-        #if (opts.iteration - opts.init_train_iter) % opts.test_step == 1: print(torch.max(labels_X_estimated,1)[1], labels_X)
-        #print(labels_X_estimated[0], labels_X[0])
-        G_Class_loss = g_y_class_loss
-        _, labels_X_estimated = torch.max(labels_X_estimated, 1)
-        test_right_case = to_data(labels_X_estimated == labels_X)
-        G_Acc = np.sum(test_right_case) / opts.batch_size
-        return G_Image_loss, G_Class_loss, G_Acc
+
+            
+        if opts.vote == 'True': labels_X_estimated_all += labels_X_estimated
+        else: 
+            G_Class_loss_img, G_Acc_img = cntloss(labels_X_estimated, labels_X, opts)
+            G_Class_loss += G_Class_loss_img / opts.stack_imgs
+            G_Acc += G_Acc_img / opts.stack_imgs
+
+    #if (opts.iteration - opts.init_train_iter) % opts.test_step == 1: print(torch.max(labels_X_estimated,1)[1], labels_X)
+    if opts.vote == 'True':
+        labels_X_estimated_all /= opts.stack_imgs
+        G_Class_loss, G_Acc = cntloss(labels_X_estimated, labels_X, opts)
+    return G_Image_loss, G_Class_loss, G_Acc
 
 def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY):
     images_X = to_var(images_X)
@@ -146,7 +164,7 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
     G_Image_loss = 0
     G_Class_loss = 0
     G_Acc = 0
-    for i in range(opts.stack_imgs):
+    G_Image_loss_img, G_Class_loss_img, G_Acc_img = work2(fake_Y_spectrums, images_Y_spectrum,labels_X,C_XtoY, opts)
         G_Image_loss_img, G_Class_loss_img, G_Acc_img = work2(fake_Y_spectrums[i], images_Y_spectrum[i],labels_X,C_XtoY, opts)
         G_Image_loss += G_Image_loss_img / opts.stack_imgs
         G_Class_loss += G_Class_loss_img / opts.stack_imgs

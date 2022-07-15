@@ -148,7 +148,7 @@ if __name__ == "__main__":
     strlist = print_opts(opts)
     with open(opts.logfile,'a') as f: f.write('\n'+' '.join(sys.argv))
     with open(opts.logfile,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'\n'.join(strlist)+'\n')
-    with open(opts.logfile2,'a') as f: f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' snr_list ' +str(opts.snr_list)+' stack '+str(opts.stack_imgs)+' : ')
+    with open(opts.logfile2,'a') as f: f.write(' , '+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' snr_list ' +str(opts.snr_list)+' stack '+str(opts.stack_imgs)+' : ')
     opts.init_train_iter = opts.load_iters
     models = main(opts,models)
     opts.init_train_iter += opts.train_iters
