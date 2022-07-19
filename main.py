@@ -45,9 +45,15 @@ def load_checkpoint(opts, maskCNNModel, classificationHybridModel):
 
 
 def main(opts,models):
-    print('================TESTING VERSION================')
-    print('================TESTING VERSION================')
-    print('================TESTING VERSION================')
+    opts.logfile = os.path.join(opts.checkpoint_dir, 'logfile-djl-train.txt')
+    opts.logfile2 = os.path.join(opts.checkpoint_dir, 'logfile2-djl-train.txt')
+    strlist = print_opts(opts)
+    with open(opts.logfile,'a') as f: f.write('\n'+' '.join(sys.argv))
+    with open(opts.logfile,'a') as f: f.write('\n'+str(opts))
+    print(str(opts))
+    with open(opts.logfile,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'\n'.join(strlist)+'\n')
+    with open(opts.logfile2,'a') as f: f.write(' , '+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' snr_list ' +str(opts.snr_list)+' stack '+str(opts.stack_imgs)+' : ')
+
     torch.cuda.empty_cache()
 
     # Create train and test dataloaders for images from the two domains X and Y
@@ -70,8 +76,8 @@ if __name__ == "__main__":
     opts = parser.parse_args()
 
     if opts.sf == -1:
-        opts.sf = int(opts.checkpoint_dir.split('-')[-1])
-        opts.data_dir='/data/djl/SF'+str(opts.sf)+'_125K'
+        opts.sf = int(opts.data_dir.split('-')[0].split('_')[0].split('/')[-1][2:])
+        #opts.data_dir='/data/djl/SF'+str(opts.sf)+'_125K'
 
     opts.n_classes = 2 ** opts.sf
     opts.stft_nfft = opts.n_classes * opts.fs // opts.bw
@@ -90,10 +96,13 @@ if __name__ == "__main__":
         opts.lr = 0.001
         if min(opts.snr_list) < -15: opts.lr *= 0.3
         if min(opts.snr_list) < -20: opts.lr /= 1.5
+    '''
     if opts.w_image == -1:
         opts.w_image = 1
         if min(opts.snr_list) < -15: opts.w_image *= 4
-        if min(opts.snr_list) < -20: opts.w_image *= 4
+        if min(opts.snr_list) < -20: opts.w_image *= 4'''
+    if opts.batch_size == -1:
+        opts.batch_size = 2 ** (11 - opts.sf)
 
 
     #default checkpoint dir
@@ -143,13 +152,26 @@ if __name__ == "__main__":
         C_XtoY.cuda()
         models.append(C_XtoY)
     
-    opts.logfile = os.path.join(opts.checkpoint_dir, 'logfile-djl-train.txt')
-    opts.logfile2 = os.path.join(opts.checkpoint_dir, 'logfile2-djl-train.txt')
-    strlist = print_opts(opts)
-    with open(opts.logfile,'a') as f: f.write('\n'+' '.join(sys.argv))
-    with open(opts.logfile,'a') as f: f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ' +'\n'.join(strlist)+'\n')
-    with open(opts.logfile2,'a') as f: f.write(' , '+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' snr_list ' +str(opts.snr_list)+' stack '+str(opts.stack_imgs)+' : ')
-    opts.init_train_iter = opts.load_iters
-    models = main(opts,models)
-    opts.init_train_iter += opts.train_iters
+        opts.init_train_iter = opts.load_iters
+
+
+    if opts.snr_list[0] == -1:
+
+        opts.snr_list = [0]*opts.stack_imgs
+        if '--lr' not in sys.argv: opts.lr = 0.001
+        if '--train_iters' not in sys.argv : opts.train_iters = 50000
+        models = main(opts,models)
+        if '--terminate_acc' not in sys.argv: opts.terminate_acc = 0.85
+
+        opts.init_train_iter = opts.iteration
+        while True:
+            for snr in range(-15,-30,-1):
+                if '--lr' not in sys.argv: opts.lr = 0.0001
+                opts.snr_list = [snr]*opts.stack_imgs
+                if '--train_iters' not in sys.argv :opts.train_iters = 5000
+                models = main(opts,models)
+                opts.init_train_iter = opts.iteration
+            if '--terminate_acc' not in sys.argv:opts.terminate_acc = 0.9
+    else:
+        models = main(opts,models)
 

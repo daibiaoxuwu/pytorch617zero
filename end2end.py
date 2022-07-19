@@ -72,7 +72,7 @@ def merge_images(sources, targets, Y, opts):
     return merged
 
 
-def save_samples(iteration, fixed_Y, fixed_X, fake_Y, name, opts):
+def save_samples(fixed_Y, fixed_X, fake_Y, name, opts):
     """Saves samples from both generators X->Y and Y->X.
     """
     fixed_X = [to_data(i) for i in fixed_X]
@@ -81,7 +81,7 @@ def save_samples(iteration, fixed_Y, fixed_X, fake_Y, name, opts):
     mergeda = merge_images(fixed_X, fake_Y, Y, opts)
 
     path = os.path.join(opts.checkpoint_dir,
-            'sample-{:06d}-snr{:.1f}-Y{:s}.png'.format(iteration,opts.snr_list[0],name))
+            'sample-{:06d}-snr{:.1f}-Y{:s}.png'.format(opts.iteration,opts.snr_list[0],name))
     merged = np.abs(mergeda[:, :, 0]+1j*mergeda[:, :, 1])
     merged = (merged - np.min(merged)) / (np.max(merged) - np.min(merged)) * 255
     merged = cv2.flip(merged, 0)
@@ -98,7 +98,7 @@ def cntloss(labels_X_estimated, labels_X, opts):
     return G_Class_loss, G_Acc
 
 def work2(fake_Y_spectrums, images_Y_spectrums,labels_X, C_XtoY, opts):
-    labels_X_estimated_all = torch.zeros((opts.n_classes,))
+    labels_X_estimated_all = torch.zeros((opts.batch_size, opts.n_classes,)).cuda()
     G_Image_loss = 0
     G_Class_loss = 0
     for i in range(opts.stack_imgs):
@@ -130,7 +130,7 @@ def work2(fake_Y_spectrums, images_Y_spectrums,labels_X, C_XtoY, opts):
         G_Class_loss, G_Acc = cntloss(labels_X_estimated, labels_X, opts)
     return G_Image_loss, G_Class_loss, G_Acc
 
-def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY):
+def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY, iteration2):
     images_X = to_var(images_X)
     images_Y = to_var(torch.tensor(images_Y[0], dtype=torch.cfloat))
     if opts.dechirp == 'True': images_X = images_X * downchirp
@@ -153,23 +153,13 @@ def work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchir
     if opts.model_ver == 0: fake_Y_spectrums = [mask_CNN(i) for i in images_X_spectrum]
     else: fake_Y_spectrums = mask_CNN(images_X_spectrum)
 
-    if (opts.iteration - opts.init_train_iter) % opts.test_step == 1: 
-        save_samples(opts.iteration, images_Y_spectrum, images_X_spectrum, fake_Y_spectrums, 'val', opts)
+    if iteration2 == 0: save_samples(images_Y_spectrum, images_X_spectrum, fake_Y_spectrums, 'val', opts)
     if opts.avg_flag == 'True':
         fake_Y_spectrum_abs = torch.mean(torch.stack([torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1]) for fake_Y_spectrum in fake_Y_spectrums],0),0)
 
         fake_Y_spectrums = [fake_Y_spectrum * (fake_Y_spectrum_abs / torch.abs(fake_Y_spectrum[:,0]+1j*fake_Y_spectrum[:,1])).unsqueeze(1).repeat(1, 2, 1, 1) for fake_Y_spectrum in fake_Y_spectrums]
 
-    G_Y_loss = 0
-    G_Image_loss = 0
-    G_Class_loss = 0
-    G_Acc = 0
-    G_Image_loss_img, G_Class_loss_img, G_Acc_img = work2(fake_Y_spectrums, images_Y_spectrum,labels_X,C_XtoY, opts)
-        G_Image_loss_img, G_Class_loss_img, G_Acc_img = work2(fake_Y_spectrums[i], images_Y_spectrum[i],labels_X,C_XtoY, opts)
-        G_Image_loss += G_Image_loss_img / opts.stack_imgs
-        G_Class_loss += G_Class_loss_img / opts.stack_imgs
-        G_Acc += G_Acc_img / opts.stack_imgs
-    return G_Image_loss, G_Class_loss, G_Acc
+    return work2(fake_Y_spectrums, images_Y_spectrum,labels_X,C_XtoY, opts)
 
 
 def training_loop(training_dataloader,testing_dataloader, models, opts):
@@ -204,19 +194,19 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
     G_Class_loss_avg = 0
     G_Acc_avg = 0
 
-    iteration = opts.init_train_iter
+    opts.iteration = opts.init_train_iter
     oldtime = time.time()
     scoreboards = [0, 0,]
     trim_size = opts.freq_size // 2
     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
-    while iteration<=opts.init_train_iter+opts.train_iters:
-            iteration+=1
+    while opts.iteration<=opts.init_train_iter+opts.train_iters:
+            opts.iteration+=1
             mask_CNN.train()
             if opts.cxtoy == 'True':C_XtoY.train()
 
             images_X, labels_X, images_Y, data_file_name = next(training_dataloader.__iter__())
             g_optimizer.zero_grad()
-            G_Image_loss, G_Class_loss, G_Acc =  work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY)
+            G_Image_loss, G_Class_loss, G_Acc =  work(images_X, labels_X, images_Y, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY, -1)
 
             G_Y_loss = G_Image_loss + G_Class_loss 
             G_Y_loss.backward()
@@ -227,8 +217,8 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
             G_Class_loss_avg += G_Class_loss.item()
             G_Acc_avg += G_Acc
 
-            if iteration % opts.log_step == 0:
-                output_lst = [  "{:6d}".format(iteration),
+            if opts.iteration % opts.log_step == 0:
+                output_lst = [  "{:6d}".format(opts.iteration),
                                 "{:6.3f}".format(G_Y_loss_avg / opts.log_step ),
                                 "{:6.3f}".format(G_Image_loss_avg / opts.log_step),
                                 "{:6.3f}".format(G_Class_loss_avg / opts.log_step),
@@ -243,9 +233,9 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
                 G_Class_loss_avg = 0
                 G_Acc_avg = 0
 
-            if (iteration) % opts.checkpoint_every == 0: checkpoint(iteration, models, opts)
+            if (opts.iteration) % opts.checkpoint_every == 0: checkpoint(opts.iteration, models, opts)
 
-            if (iteration - opts.init_train_iter) % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
+            if (opts.iteration - opts.init_train_iter) % opts.test_step == 1:# or iteration == opts.init_train_iter + opts.train_iters:
                 mask_CNN.eval()
                 if opts.cxtoy == 'True':C_XtoY.eval()
                 with torch.no_grad():
@@ -255,11 +245,9 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
                     iteration2 = 0
                     G_Image_loss_avg_test = 0
                     G_Class_loss_avg_test = 0
-                    while iteration2 < opts.max_test_iters: 
-                            opts.iteration = iteration + iteration2
-                            iteration2 += 1
+                    for iteration2 in range(opts.max_test_iters):
                             images_X_test, labels_X_test, images_Y_test, data_file_name = next(testing_dataloader.__iter__())
-                            G_Image_loss, G_Class_loss, G_Acc = work(images_X_test, labels_X_test, images_Y_test, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY)
+                            G_Image_loss, G_Class_loss, G_Acc = work(images_X_test, labels_X_test, images_Y_test, data_file_name, opts, downchirp, downchirpY, mask_CNN, C_XtoY, iteration2)
                             G_Image_loss_avg_test += G_Image_loss
                             G_Class_loss_avg_test += G_Class_loss
 
@@ -270,12 +258,11 @@ def training_loop(training_dataloader,testing_dataloader, models, opts):
                     print('TEST: ACC:' ,error_matrix2, '['+str(error_matrix)+'/'+str(error_matrix_count)+']','ILOSS:',"{:6.3f}".format(G_Image_loss_avg_test/error_matrix_count) ,
                             'CLOSS:',"{:6.3f}".format(G_Class_loss_avg_test/error_matrix_count))
                     with open(opts.logfile2,'a') as f:
-                        f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+                        f.write('\n'+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' , ' + "{:6d}".format(opts.iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
                     with open(opts.logfile,'a') as f:
-                        f.write(' , ' + "{:6d}".format(iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
+                        f.write(' , ' + "{:6d}".format(opts.iteration) +  ' , ' + "{:6.3f}".format(error_matrix2))
                     if(error_matrix2>=opts.terminate_acc):
                         print('REACHED',opts.terminate_acc,'ACC, TERMINATINg...')
-                        iteration = opts.init_train_iter + opts.train_iters + 1
                         break
                     print('   CURRENT TIME       ITER  YLOSS  ILOSS  CLOSS   ACC   TIME  ----TRAINING',opts.lr,'----')
     return [mask_CNN, C_XtoY]

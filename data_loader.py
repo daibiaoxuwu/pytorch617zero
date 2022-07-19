@@ -119,7 +119,7 @@ def lora_loader(opts):
             for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')): 
                 symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes 
                 files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f)) 
-    elif(re.search(r"sf\d+-1b$", opts.data_dir)):
+    elif(re.search(r"sf\d+-1.$", opts.data_dir)):
         if max(opts.snr_list)!=min(opts.snr_list): raise  NotImplementedError('only single snr now')
         for i in range(1,5): assert 'Gateway'+str(i) in os.listdir(opts.data_dir), 'cannot find folder Gateway'+str(i)
 
@@ -154,7 +154,7 @@ def lora_loader(opts):
     splitpos = [ opts.stack_imgs if len(files[i]) >= 2*opts.stack_imgs else 0 for i in range(opts.n_classes)] 
 
     a = [len(files[i]) for i in range(opts.n_classes)] 
-    print('read data: max cnt', max(a), a.index(max(a)), 'min cnt', min(a), a.index(min(a)) )
+    print('read data: max cnt', max(a), 'index', a.index(max(a)), 'min cnt', min(a), 'index',a.index(min(a)) )
  
     training_dataset = lora_dataset(opts, dict(zip(list(range(opts.n_classes)), [files[i][splitpos[i]:] for i in range(opts.n_classes)])) ) 
     training_dloader = DataLoader(dataset=training_dataset, batch_size=opts.batch_size, shuffle=False, num_workers=opts.num_workers,  drop_last=True) 
