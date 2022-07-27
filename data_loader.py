@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 from torch.utils import data 
 import pickle 
 import sys 
-from utils import to_var, to_data, spec_to_network_input, create_dir 
+from utils import *
 import cv2 
 from scipy.signal import chirp, spectrogram 
 import matplotlib.pyplot as plt 
@@ -72,27 +72,43 @@ class lora_dataset(data.Dataset):
                         chirp_raw = data_perY[k] 
                         phase = random.uniform(-np.pi, np.pi) 
                         chirp_raw *= (np.cos(phase)+1j*np.sin(phase)) 
-                        ''' 
-                        chirp_dechirp = chirp_raw .* chirp_down 
-                        chirp_fft_raw =abs(np.fft.fft(chirp_dechirp, nsamp*10)) 
-                        align_win_len = len(chirp_fft_raw) / (self.opts.fs/self.opts.bw); 
- 
-                        chirp_fft_overlap=chirp_fft_raw[:align_win_len]+chirp_fft_raw[-align_win_len:] 
-                        chirp_peak_overlap=abs(chirp_fft_overlap) 
-                        [pk_height_overlap,pk_index_overlap]=max(chirp_peak_overlap)''' 
+
+                        #gen idea symbol
+                        nsamp = int(self.opts.fs * self.opts.n_classes / self.opts.bw) 
+                        t = np.linspace(0, nsamp / self.opts.fs, nsamp) 
+                        chirpI1 = chirp(t, f0=-self.opts.bw/2, f1=self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw , method='linear', phi=90) 
+                        chirpQ1 = chirp(t, f0=-self.opts.bw/2, f1=self.opts.bw/2, t1=2** self.opts.sf / self.opts.bw, method='linear', phi=0) 
+                        mchirp = chirpI1+1j*chirpQ1 
+                        mchirp = np.tile(mchirp, 2)
+                        time_shift = round(symbol_index / self.opts.n_classes * nsamp)
+                        time_shift = round((self.opts.n_classes - symbol_index) / self.opts.n_classes * nsamp)
+                        chirp_ideal = torch.tensor(mchirp[time_shift:time_shift+nsamp],dtype=torch.cfloat)
+
+                        images_X_spectrum_ideal = torch.stft(input=chirp_ideal,n_fft=self.opts.stft_nfft,win_length =self.opts.stft_nfft//self.opts.stft_mod, hop_length =int(self.opts.stft_nfft/32), return_complex=True).cuda()
+                        ideal_symbol = torch.squeeze(spec_to_network_input2( spec_to_network_input(images_X_spectrum_ideal.unsqueeze(0), self.opts), self.opts )).cpu()
+
+                        images_X_spectrum_raw = torch.stft(input=chirp_raw,n_fft=self.opts.stft_nfft,win_length =self.opts.stft_nfft//self.opts.stft_mod, hop_length =int(self.opts.stft_nfft/32), return_complex=True).cuda()
+                        fake_symbol = torch.squeeze(spec_to_network_input2( spec_to_network_input(images_X_spectrum_raw.unsqueeze(0), self.opts), self.opts )).cpu()
+                        
+                        #print(fake_symbol[0].shape)
+                        loss = torch.nn.MSELoss(reduction='mean')(torch.abs(ideal_symbol[0]+1j*ideal_symbol[1]), torch.abs(fake_symbol[0]+1j*fake_symbol[1]))
+                        if loss>0.00025:
+                            return self.__getitem__(index0) 
+
  
                         mwin = nsamp//2; 
                         datain = to_data(chirp_raw) 
                         A = uniform_filter1d(abs(datain),size=mwin) 
                         datain = datain[A >= max(A)/2] 
                         amp_sig = torch.mean(torch.abs(torch.tensor(datain))) 
+                        chirp_raw /= amp_sig
                         #print(amp_sig) 
                         #assert(abs(amp_sig-0.04)<0.03) 
                          
-                        amp = amp_sig*math.pow(0.1, snr/20) 
+                        amp = math.pow(0.1, snr/20) 
                         nsamp = self.opts.n_classes * self.opts.fs // self.opts.bw 
                         noise =  torch.tensor(amp / math.sqrt(2) * np.random.randn(nsamp) + 1j * amp / math.sqrt(2) * np.random.randn(nsamp), dtype = torch.cfloat).cuda() 
-                        data = chirp_raw + noise 
+                        data = (chirp_raw + noise)
  
                         data_pers.append(data) 
                         #data_file_name = [(self.opts.n_classes - symbol_index)%self.opts.n_classes, snr, self.opts.sf, self.opts.bw, 1, symbol_index, 1, 1] 
@@ -119,13 +135,11 @@ def lora_loader(opts):
             for f in os.listdir(os.path.join(opts.data_dir, ff, 'woCFO')): 
                 symbol_idx = (opts.n_classes - round(float(f.split('_')[1])))%opts.n_classes 
                 files[symbol_idx].append(os.path.join(opts.data_dir, ff, 'woCFO', f)) 
-    elif(re.search(r"sf\d+-1b$", opts.data_dir)):
+    else:
         if max(opts.snr_list)!=min(opts.snr_list): raise  NotImplementedError('only single snr now')
         for i in range(1,5): assert 'Gateway'+str(i) in os.listdir(opts.data_dir), 'cannot find folder Gateway'+str(i)
 
         filelist = [ set(os.listdir(os.path.join(opts.data_dir, 'Gateway'+str(i)))) for i in range(2,5)]
-        wrongnumber = scio.loadmat(os.path.join( opts.data_dir, 'wrongnumber.mat'))['wrongnumber'][0]
-        wrongnumber = set(wrongnumber)
 
         '''
         a = [0]*50
@@ -134,7 +148,6 @@ def lora_loader(opts):
             a[-snr]+=1
         print(a)'''
         for ff in os.listdir(os.path.join(opts.data_dir, 'Gateway1')): 
-            if int(ff) in wrongnumber: continue
             for f in os.listdir(os.path.join(opts.data_dir, 'Gateway1',ff, 'woCFO')): 
                 symbol_idx = (opts.n_classes - round(float(f.split('_')[2])))%opts.n_classes 
                 #snr = round(float(f.split('_')[1]))
@@ -147,7 +160,6 @@ def lora_loader(opts):
                         break
                 if flag==0: files[symbol_idx].append(pathf)
 
-    else: raise NotImplementedError('data_dir not known')
 
     for i in files.keys(): 
         files[i].sort(key = lambda x: int(os.path.basename(x).split('_')[0])) 
